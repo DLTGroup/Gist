@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import type { Folder, Gist } from "@gist/core";
 import { formatMinutes } from "@gist/core";
-import { api } from "../api.ts";
+import { api, type ImportStatus } from "../api.ts";
 
 export function Library() {
   const [params, setParams] = useSearchParams();
@@ -15,6 +15,7 @@ export function Library() {
   const [folders, setFolders] = useState<Folder[]>([]);
   const [tags, setTags] = useState<{ tag: string; count: number }[]>([]);
   const [search, setSearch] = useState(q);
+  const [imports, setImports] = useState<ImportStatus[]>([]);
 
   const set = (k: string, v: string) => {
     const next = new URLSearchParams(params);
@@ -36,6 +37,7 @@ export function Library() {
   useEffect(() => {
     reloadFolders();
     api.tags().then((r) => setTags(r.tags), () => {});
+    api.imports().then((r) => setImports(r.imports), () => {});
   }, []);
 
   const current = folders.find((f) => f.id === folder);
@@ -54,6 +56,16 @@ export function Library() {
         <button onClick={() => api.download("/api/export/evernote")} title="Export everything as an Evernote file">Export all</button>
       </div>
 
+      {imports.length > 0 && !folder && (
+        <div className="row small" style={{ marginBottom: "0.8rem" }}>
+          <span className="muted">Imports:</span>
+          {imports.slice(0, 6).map((i) => (
+            <Link key={i.id} to={`/app/imports/${i.id}`} className="pill">
+              {i.title} · {i.processing ? `${i.ready + i.failed}/${i.total}` : `${i.ready} gists`}
+            </Link>
+          ))}
+        </div>
+      )}
       <div className="filters">
         <input type="search" placeholder="Search your gists…" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Search" />
         <select value={folder} onChange={(e) => set("folder", e.target.value)} aria-label="Folder">

@@ -6,7 +6,7 @@ COPY packages/core/package.json packages/core/
 COPY apps/api/package.json apps/api/
 COPY apps/web/package.json apps/web/
 COPY apps/desktop/package.json apps/desktop/
-RUN ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci --no-audit --no-fund
+RUN npm ci --no-audit --no-fund -w @gist/core -w @gist/api -w @gist/web --include-workspace-root
 COPY tsconfig.base.json ./
 COPY packages packages
 COPY apps/api apps/api

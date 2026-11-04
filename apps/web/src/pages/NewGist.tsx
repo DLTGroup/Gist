@@ -1,9 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import type { ExtractionTemplate, Folder } from "@gist/core";
-import { detectSourceKind } from "@gist/core";
+import { detectCollection, detectSourceKind, extractLinks } from "@gist/core";
 import { api } from "../api.ts";
 import { useSession } from "../main.tsx";
+
+const COLLECTION_LABEL = {
+  "youtube-playlist": "▶ YouTube playlist",
+  "spotify-playlist": "🎧 Spotify playlist",
+  "spotify-show": "🎙 Spotify podcast show",
+  "apple-show": "🎙 Apple Podcasts show",
+  "podcast-feed": "🎙 Podcast feed",
+} as const;
 
 const KIND_LABEL = { youtube: "▶ YouTube video", podcast: "🎙 Podcast episode", web: "📰 Article or blog post", text: "📝 Pasted text" } as const;
 
@@ -29,13 +37,30 @@ export function NewGist() {
   }, []);
 
   const kind = useMemo(() => (input.trim() ? detectSourceKind(input) : null), [input]);
-  const isText = kind === "text";
+  const links = useMemo(() => extractLinks(input), [input]);
+  const collection = useMemo(() => (links.length === 1 && input.trim() === links[0] ? detectCollection(links[0]) : null), [input, links]);
+  const [wholeList, setWholeList] = useState(true);
+  const [limit, setLimit] = useState(25);
+  const bulkLinks = links.length > 1 && links.join(" ").length > input.replace(/\s+/g, " ").trim().length * 0.6;
+  const importMode = bulkLinks || (!!collection && (!collection.ambiguous || wholeList));
+  const isText = kind === "text" && !bulkLinks;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError(null);
     try {
+      if (importMode) {
+        const { import: imp } = await api.createImport({
+          ...(bulkLinks ? { urls: links } : { url: input.trim() }),
+          limit,
+          templateId,
+          focus: focus.trim() || undefined,
+          folderId: folderId || null,
+        });
+        nav(`/app/imports/${imp.id}`);
+        return;
+      }
       const { gist } = await api.createGist({
         url: isText ? undefined : input.trim(),
         text: isText ? input : undefined,
@@ -55,7 +80,7 @@ export function NewGist() {
     <form className="stack composer" onSubmit={submit}>
       <div>
         <h1>What do you want the gist of?</h1>
-        <p className="muted">Paste a YouTube, podcast or article link, or paste text.</p>
+        <p className="muted">Paste a YouTube, podcast or article link, a whole playlist, several links at once, or some text.</p>
       </div>
       <div>
         <textarea
@@ -66,8 +91,34 @@ export function NewGist() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
         />
-        {kind && <span className="pill source-chip" style={{ marginTop: "0.5rem" }}>{KIND_LABEL[kind]}</span>}
+        {kind && !importMode && !collection && <span className="pill source-chip" style={{ marginTop: "0.5rem" }}>{KIND_LABEL[kind]}</span>}
       </div>
+      {(collection || bulkLinks) && (
+        <div className="card" style={{ background: "var(--accent-soft)", borderColor: "transparent", boxShadow: "none" }}>
+          <strong>{bulkLinks ? `${links.length} links found` : COLLECTION_LABEL[collection!.kind]}</strong>
+          {collection?.ambiguous && (
+            <div className="row" style={{ marginTop: "0.5rem" }}>
+              <label className="row" style={{ fontWeight: 400, margin: 0 }}><input type="radio" style={{ width: "auto" }} checked={wholeList} onChange={() => setWholeList(true)} /> The whole playlist</label>
+              <label className="row" style={{ fontWeight: 400, margin: 0 }}><input type="radio" style={{ width: "auto" }} checked={!wholeList} onChange={() => setWholeList(false)} /> Just this video</label>
+            </div>
+          )}
+          {importMode && (
+            <>
+              <p className="muted small" style={{ margin: "0.4rem 0" }}>
+                Each {collection?.kind === "youtube-playlist" || bulkLinks ? "item" : "episode"} gets its own gist in the format below, all filed in a new folder, with combined savings.
+                {collection?.kind === "spotify-playlist" && " Music tracks are skipped; podcast episodes are summarized."}
+              </p>
+              <div className="row">
+                <label htmlFor="limit" style={{ margin: 0 }}>Summarize up to</label>
+                <select id="limit" style={{ width: "auto" }} value={limit} onChange={(e) => setLimit(+e.target.value)}>
+                  {[5, 10, 25, 50].map((n) => <option key={n} value={n}>{n} items</option>)}
+                </select>
+                {!bulkLinks && collection?.kind !== "youtube-playlist" && <span className="muted small">(newest first)</span>}
+              </div>
+            </>
+          )}
+        </div>
+      )}
       {isText && (
         <div className="field">
           <label htmlFor="t">Title <span className="hint">(optional)</span></label>
@@ -107,7 +158,7 @@ export function NewGist() {
       {error && <p className="error">{error}</p>}
       <div>
         <button className="btn-primary" disabled={busy || !input.trim()} style={{ padding: "0.7rem 1.4rem" }}>
-          {busy ? "Starting…" : "Get the gist"}
+          {busy ? "Starting…" : importMode ? "Summarize them all" : "Get the gist"}
         </button>
       </div>
     </form>

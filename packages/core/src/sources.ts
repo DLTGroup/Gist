@@ -60,7 +60,8 @@ export function detectSourceKind(input: string): SourceKind {
     return "text";
   }
   if (PODCAST_HOSTS.some((h) => host === h || host.endsWith("." + h))) return "podcast";
-  if (AUDIO_EXT.test(trimmed) || FEED_HINT.test(trimmed)) return "podcast";
+  const noHash = trimmed.split("#")[0];
+  if (AUDIO_EXT.test(noHash) || FEED_HINT.test(noHash)) return "podcast";
   return "web";
 }
 
@@ -86,4 +87,40 @@ export function timestampLink(kind: SourceKind, url: string | null, seconds: num
     return id ? `https://www.youtube.com/watch?v=${id}&t=${Math.floor(seconds)}s` : null;
   }
   return null;
+}
+
+export type CollectionKind = "youtube-playlist" | "spotify-playlist" | "spotify-show" | "podcast-feed" | "apple-show";
+
+/**
+ * Recognizes links that point at many items (a playlist, a show or a feed) rather than one.
+ * `ambiguous` is true for a single video opened inside a playlist (watch?v=…&list=…).
+ */
+export function detectCollection(input: string): { kind: CollectionKind; ambiguous: boolean } | null {
+  let u: URL;
+  try {
+    u = new URL(input.trim());
+  } catch {
+    return null;
+  }
+  const host = u.hostname.replace(/^(www|m|music)\./, "");
+  if (host === "youtube.com" || host === "youtu.be") {
+    const list = u.searchParams.get("list");
+    if (!list || list.startsWith("RD")) return null; // RD… are auto-generated mixes, not real playlists
+    return { kind: "youtube-playlist", ambiguous: !!youtubeVideoId(input) };
+  }
+  if (host === "open.spotify.com") {
+    const seg = u.pathname.split("/").filter(Boolean).filter((s) => !s.startsWith("intl-"));
+    if (seg[0] === "playlist") return { kind: "spotify-playlist", ambiguous: false };
+    if (seg[0] === "show") return { kind: "spotify-show", ambiguous: false };
+    return null;
+  }
+  if (host === "podcasts.apple.com" && /\/id\d+/.test(u.pathname) && !u.searchParams.get("i")) return { kind: "apple-show", ambiguous: false };
+  if (/(\/feed\/?$|\/rss\/?$|\.rss$|\.xml$|^feeds\.)/i.test(u.pathname) || /^feeds?\./.test(host)) return { kind: "podcast-feed", ambiguous: false };
+  return null;
+}
+
+/** Pulls every http(s) link out of pasted text (one per line, or mixed with other text). */
+export function extractLinks(text: string): string[] {
+  const found = text.match(/https?:\/\/[^\s<>"')]+/g) ?? [];
+  return [...new Set(found.map((s) => s.replace(/[.,;]+$/, "")))];
 }

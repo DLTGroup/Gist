@@ -1,5 +1,7 @@
 import { Hono, type Context } from "hono";
 import { cors } from "hono/cors";
+import { secureHeaders } from "hono/secure-headers";
+import { bodyLimit } from "hono/body-limit";
 import { HTTPException } from "hono/http-exception";
 import type { ExportTarget, ExtractionTemplate, Gist, Savings, UserSettings } from "@gist/core";
 import {
@@ -18,6 +20,7 @@ import type { DB } from "./db.ts";
 import { DEFAULT_SETTINGS, getGist, getSettings, listFolders, listTemplates, newId, normalizeTag, now, reindex, rowToGist, setTags } from "./db.ts";
 import { createSession, deleteSession, hashPassword, userIdForToken, verifyPassword } from "./auth.ts";
 import { IngestError, ingest } from "./ingest/index.ts";
+import { MAX_IMPORT_ITEMS, expandCollection, type Collection } from "./ingest/playlist.ts";
 import { SummarizeError, type Summarizer } from "./summarize.ts";
 import { ExportError, sendToTarget } from "./exporters.ts";
 
@@ -29,16 +32,26 @@ export interface AppDeps {
   summarizer: Summarizer;
   /** Override ingestion in tests. */
   ingestFn?: typeof ingest;
+  expandFn?: typeof expandCollection;
   corsOrigins?: string[];
 }
 
 const SECRET_FIELDS: (keyof UserSettings)[] = ["notionToken"];
 
-export function createApp({ db, summarizer, ingestFn = ingest, corsOrigins = [] }: AppDeps) {
+export function createApp({ db, summarizer, ingestFn = ingest, expandFn = expandCollection, corsOrigins = [] }: AppDeps) {
   const app = new Hono<Env>();
   const jobs = new JobQueue(3);
   const rate = new RateLimiter(40, 3600_000);
+  const bulkRate = new RateLimiter(150, 3600_000);
 
+  app.use("*", secureHeaders({ crossOriginEmbedderPolicy: false, contentSecurityPolicy: { defaultSrc: ["'self'"], imgSrc: ["'self'", "https:", "data:"], styleSrc: ["'self'", "'unsafe-inline'"], connectSrc: ["'self'"], frameAncestors: ["'none'"] } }));
+  app.use("/api/*", bodyLimit({ maxSize: 4 * 1024 * 1024, onError: (c) => c.json({ error: "That's too much text to send at once." }, 413) }));
+  const authRate = new RateLimiter(20, 15 * 60_000);
+  app.use("/api/auth/*", async (c, next) => {
+    const ip = c.req.header("x-forwarded-for")?.split(",")[0].trim() || c.req.header("x-real-ip") || "local";
+    if (!authRate.take(ip)) fail(429, "Too many attempts. Please wait a few minutes and try again.");
+    await next();
+  });
   app.use("/api/*", cors({ origin: (o) => (corsOrigins.includes(o) || corsOrigins.includes("*") ? o : null), allowHeaders: ["authorization", "content-type"], allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE"] }));
 
   app.onError((err, c) => {
@@ -341,6 +354,94 @@ export function createApp({ db, summarizer, ingestFn = ingest, corsOrigins = [] 
       ? ids.map((id) => getGist(db, uid, id)).filter((g): g is Gist => !!g)
       : (db.prepare("SELECT * FROM gists WHERE user_id = ? AND status = 'ready' ORDER BY created_at DESC").all(uid) as Row[]).map((r) => rowToGist(db, r));
     return c.body(toEnex(gists), 200, { "content-type": "application/enex+xml; charset=utf-8", "content-disposition": 'attachment; filename="gist-export.enex"' });
+  });
+
+  // ---------- bulk import (playlists, shows, feeds, pasted link lists) ----------
+  app.post("/api/imports", async (c) => {
+    const uid = c.get("userId");
+    const b = await body<{ url?: string; urls?: string[]; limit?: number; templateId?: string; focus?: string; folderId?: string | null; title?: string }>(c);
+    const limit = Math.max(1, Math.min(MAX_IMPORT_ITEMS, Number(b.limit) || 25));
+    let col: Collection;
+    if (b.url?.trim()) col = await expandFn(b.url.trim(), limit);
+    else if (b.urls?.length) {
+      const urls = [...new Set(b.urls.map((u) => u.trim()).filter((u) => /^https?:\/\//i.test(u)))];
+      if (!urls.length) fail(400, "Paste at least one link.");
+      col = { kind: "youtube-playlist", title: b.title?.trim() || `Imported links (${new Date().toLocaleDateString("en-CA")})`, items: urls.slice(0, limit).map((url) => ({ url, title: null })), skipped: urls.length > limit ? [{ title: null, reason: `${urls.length - limit} more link(s) beyond the ${limit}-item limit` }] : [] };
+      (col as { kind: string }).kind = "links";
+    } else fail(400, "Paste a playlist link or a list of links.");
+    for (let i = 0; i < col!.items.length; i++) if (!bulkRate.take(uid)) fail(429, "That's more than the hourly bulk limit. Try a smaller import or wait a little.");
+    const template = resolveTemplate(uid, b.templateId);
+    let folderId = b.folderId ?? null;
+    if (folderId && !db.prepare("SELECT 1 FROM folders WHERE id = ? AND user_id = ?").get(folderId, uid)) fail(404, "Folder not found.");
+    if (!folderId) {
+      folderId = newId();
+      db.prepare("INSERT INTO folders (id, user_id, name, colour, created_at) VALUES (?, ?, ?, NULL, ?)").run(folderId, uid, col!.title.slice(0, 60), now());
+    }
+    const importId = newId();
+    db.prepare("INSERT INTO imports (id, user_id, kind, source_url, title, folder_id, template_id, skipped_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").run(
+      importId, uid, col!.kind, b.url?.trim() || null, col!.title, folderId, template.id, JSON.stringify(col!.skipped), now(),
+    );
+    const jobsDone: Promise<unknown>[] = [];
+    col!.items.forEach((item, i) => {
+      const id = newId();
+      // Stagger timestamps so the library keeps playlist order (newest first = last item first).
+      const t = new Date(Date.now() + i).toISOString();
+      const placeholder = { kind: "web", url: item.url, title: item.title || item.url, author: null, publishedAt: null, thumbnailUrl: null, durationSeconds: null, wordCount: 0 };
+      db.prepare("INSERT INTO gists (id, user_id, status, source_json, template_id, focus, folder_id, import_id, created_at, updated_at) VALUES (?, ?, 'processing', ?, ?, ?, ?, ?, ?, ?)").run(
+        id, uid, JSON.stringify(placeholder), template.id, b.focus?.trim() || null, folderId, importId, t, t,
+      );
+      const g = getGist(db, uid, id)!;
+      jobsDone.push(jobs.run(() => processGist(g, { url: item.url }, template)));
+    });
+    if (c.req.query("wait") === "1") await Promise.all(jobsDone);
+    return c.json({ import: importStatus(uid, importId) }, 202);
+  });
+
+  function importStatus(uid: string, id: string) {
+    const r = db.prepare("SELECT * FROM imports WHERE id = ? AND user_id = ?").get(id, uid) as Row | undefined;
+    if (!r) return fail(404, "Import not found.");
+    const gists = (db.prepare("SELECT * FROM gists WHERE import_id = ? ORDER BY created_at").all(id) as Row[]).map((g) => rowToGist(db, g));
+    const count = (s: string) => gists.filter((g) => g.status === s).length;
+    const savings = gists.flatMap((g) => (g.savings ? [g.savings] : []));
+    return {
+      id, title: r.title as string, kind: r.kind as string, sourceUrl: (r.source_url as string) ?? null, folderId: (r.folder_id as string) ?? null,
+      templateId: r.template_id as string, createdAt: r.created_at as string, skipped: JSON.parse(r.skipped_json as string),
+      total: gists.length, ready: count("ready"), failed: count("failed"), processing: count("processing"),
+      totals: totalSavings(savings, getSettings(db, uid).currency),
+      gists,
+    };
+  }
+
+  app.get("/api/imports", (c) => {
+    const uid = c.get("userId");
+    const rows = db.prepare("SELECT id FROM imports WHERE user_id = ? ORDER BY created_at DESC LIMIT 50").all(uid) as Row[];
+    return c.json({ imports: rows.map((r) => { const s = importStatus(uid, r.id as string); return { ...s, gists: undefined }; }) });
+  });
+  app.get("/api/imports/:id", (c) => c.json({ import: importStatus(c.get("userId"), c.req.param("id")) }));
+  app.post("/api/imports/:id/retry", async (c) => {
+    const uid = c.get("userId");
+    const imp = importStatus(uid, c.req.param("id"));
+    const failed = imp.gists.filter((g) => g.status === "failed" && g.source.url);
+    for (const g of failed) {
+      const template = resolveTemplate(uid, g.templateId);
+      db.prepare("UPDATE gists SET status = 'processing', error = NULL WHERE id = ?").run(g.id);
+      jobs.run(() => processGist(g, { url: g.source.url }, template));
+    }
+    return c.json({ retried: failed.length });
+  });
+
+  /** One Markdown file with every ready gist in a folder or import, e.g. to drop into a notes app at once. */
+  app.get("/api/export/markdown", (c) => {
+    const uid = c.get("userId");
+    const folder = c.req.query("folder");
+    const imp = c.req.query("import");
+    const where = imp ? "import_id = ?" : folder ? "folder_id = ?" : "1 = 1";
+    const params = imp ? [uid, imp] : folder ? [uid, folder] : [uid];
+    const gists = (db.prepare(`SELECT * FROM gists WHERE user_id = ? AND status = 'ready' AND ${where} ORDER BY created_at`).all(...params) as Row[]).map((r) => rowToGist(db, r));
+    const name = imp ? (db.prepare("SELECT title FROM imports WHERE id = ?").get(imp) as Row | undefined)?.title : folder ? (db.prepare("SELECT name FROM folders WHERE id = ?").get(folder) as Row | undefined)?.name : "All gists";
+    const doc = [`# ${name ?? "Gists"}`, "", ...gists.map((g) => toMarkdown(g).replace(/^(#{1,5}) /gm, "#$1 "))].join("\n");
+    const file = String(name ?? "gists").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "gists";
+    return c.body(doc, 200, { "content-type": "text/markdown; charset=utf-8", "content-disposition": `attachment; filename="${file}.md"` });
   });
 
   // ---------- savings dashboard ----------

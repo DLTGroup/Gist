@@ -9,6 +9,7 @@ This is the first end-to-end build: one backend, a web app, a desktop app (macOS
 | Area | What's built |
 | --- | --- |
 | **Ingestion** | YouTube (public captions, with timestamps); podcasts via Apple Podcasts, Spotify episode links, RSS feeds, show pages or audio files (publisher transcripts first, speech-to-text fallback via Deepgram); articles and blogs (Readability extraction); pasted text. |
+| **Bulk import** | Paste a YouTube playlist, a Spotify playlist or show, an Apple Podcasts show, an RSS feed, or a list of links: each item gets its own gist (up to 50 per import) in a new folder named after the playlist, with live progress, combined savings, retry for failures, and one-file Markdown or Evernote export. Music tracks in Spotify playlists are skipped; podcast episodes are summarized. |
 | **Summarization** | Claude (`claude-opus-5-5`, adaptive thinking, structured JSON output, server-side refusal fallback). A demo extractor runs when no API key is set so everything works locally. |
 | **Tailoring** | 8 built-in templates (Quick gist, Takeaways and action items, Study notes, How-to steps, Podcast highlights, Research brief, Decision brief, Recipe card), a template builder (sections, format, length, tone, audience, timestamps), and a per-gist "What are you looking for?" focus. Re-run any gist with another template or focus. |
 | **Savings** | Per-gist and cumulative time saved, value of that time, words avoided and % less effort, by week and source type. Assumptions (hourly value, playback speed, reading speed, note-taking overhead) are shown and editable. Landing page has a live savings calculator. |
@@ -44,6 +45,14 @@ Production-style single server: `npm run build && npm start`, then open http://l
 
 **Mobile:** `cd apps/mobile && npm install`, set `EXPO_PUBLIC_API_URL` to a URL the phone can reach, then `npx expo run:android` or `npx expo run:ios`. Share-sheet capture uses a native extension, so it needs a development build (not Expo Go). Store builds: `eas build`.
 
+## Deploying the live site
+
+- **Render** (simplest): push this repo to GitHub, then in Render choose New › Blueprint and pick the repo. `render.yaml` sets up the Docker service, a 1 GB disk for the database and the health check; Render asks for `ANTHROPIC_API_KEY` (and optionally `DEEPGRAM_API_KEY`).
+- **Fly.io, Toronto region** (keeps data in Canada): see the comments at the top of `fly.toml`.
+- Any Docker host works: `docker build -t gist .` and mount a volume at `/data`.
+
+The production build serves the web app and API from one origin, with security headers, sign-in rate limiting and request size limits.
+
 ## Configuration
 
 See `.env.example`. Key settings: `ANTHROPIC_API_KEY`, `GIST_MODEL` (default `claude-opus-5-5`), `GIST_EFFORT` (default `medium`), `DEEPGRAM_API_KEY` (podcast audio without a published transcript), `GIST_DB_PATH`, `GIST_CORS_ORIGINS`.
@@ -54,6 +63,6 @@ See `.env.example`. Key settings: `ANTHROPIC_API_KEY`, `GIST_MODEL` (default `cl
 
 ## Status of this first run
 
-Tested here: 19 automated tests (parsers for YouTube captions, VTT/SRT/JSON transcripts, RSS feeds and articles; the full API flow from sign-up through gist, organize, search, export, templates, savings and user isolation), plus a browser walkthrough of the web app at desktop and phone widths against a real article page. The mobile app type-checks and its Android bundle builds; the desktop app passes a syntax check.
+Tested here: 25 automated tests (including playlist, Spotify and feed parsing and the bulk-import API) (parsers for YouTube captions, VTT/SRT/JSON transcripts, RSS feeds and articles; the full API flow from sign-up through gist, organize, search, export, templates, savings and user isolation), plus a browser walkthrough of the web app at desktop and phone widths against a real article page. The mobile app type-checks and its Android bundle builds; the desktop app passes a syntax check.
 
 Not yet tested live: YouTube, Apple Podcasts, Spotify and other external sites were blocked by the build environment's network policy, and no Anthropic or Deepgram key was available, so live ingestion and Claude output need a first check on a real deployment. See docs/ROADMAP.md for what's next.

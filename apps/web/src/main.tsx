@@ -12,6 +12,7 @@ import { Library } from "./pages/Library.tsx";
 import { Templates } from "./pages/Templates.tsx";
 import { SavingsPage } from "./pages/Savings.tsx";
 import { SettingsPage } from "./pages/Settings.tsx";
+import { ImportView } from "./pages/ImportView.tsx";
 
 interface Session {
   user: Me | null;
@@ -88,6 +89,7 @@ createRoot(document.getElementById("root")!).render(
             <Route path="new" element={<NewGist />} />
             <Route path="library" element={<Library />} />
             <Route path="g/:id" element={<GistView />} />
+            <Route path="imports/:id" element={<ImportView />} />
             <Route path="templates" element={<Templates />} />
             <Route path="savings" element={<SavingsPage />} />
             <Route path="settings" element={<SettingsPage />} />

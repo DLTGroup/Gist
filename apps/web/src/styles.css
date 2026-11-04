@@ -167,3 +167,9 @@ label { display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.3
 .calc .result .v { font-size: 1.1rem; }
 .auth { max-width: 380px; margin: 8vh auto; padding: 0 16px; }
 .integrations { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+
+/* ---------- wordmark ---------- */
+.wordmark { font-weight: 800; letter-spacing: -0.02em; line-height: 1; color: var(--text); }
+.wm-i { position: relative; display: inline-block; }
+.wm-dot { position: absolute; left: 50%; top: -0.1em; width: 0.23em; height: 0.23em; margin-left: -0.115em; border-radius: 50%; background: var(--brand-dot); }
+:root { --brand-dot: #fbbf24; }

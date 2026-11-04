@@ -1,0 +1,23 @@
+# Render Blueprint: New › Blueprint › pick this repo. You'll be asked for the secret values.
+services:
+  - type: web
+    name: gist
+    runtime: docker
+    plan: starter
+    region: oregon
+    healthCheckPath: /api/health
+    disk:
+      name: gist-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: DEEPGRAM_API_KEY
+        sync: false
+      - key: GIST_MODEL
+        value: claude-opus-5-5
+      - key: GIST_EFFORT
+        value: medium
+      - key: GIST_DB_PATH
+        value: /data/gist.db

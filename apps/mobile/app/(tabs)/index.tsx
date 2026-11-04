@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { Alert, Pressable, ScrollView, Text, View } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { router, useLocalSearchParams } from "expo-router";
 import type { ExtractionTemplate } from "@gist/core";
-import { detectSourceKind } from "@gist/core";
+import { detectCollection, detectSourceKind, extractLinks } from "@gist/core";
 import { api } from "../../lib/api";
 import { useSession } from "../../lib/session";
 import { useTheme } from "../../lib/theme";
@@ -30,10 +30,21 @@ export default function NewGist() {
   }, [user]);
 
   const kind = input.trim() ? detectSourceKind(input) : null;
+  const links = extractLinks(input);
+  const collection = links.length === 1 ? detectCollection(links[0]) : null;
+  const bulk = links.length > 1;
+  const importMode = bulk || (!!collection && !collection.ambiguous);
   const submit = async () => {
     setBusy(true);
     setError(null);
     try {
+      if (importMode) {
+        const { import: imp } = await api.createImport({ ...(bulk ? { urls: links } : { url: input.trim() }), limit: 25, templateId, focus });
+        setInput("");
+        Alert.alert("Import started", `${imp.total} items from "${imp.title}" are being summarized into a folder of the same name.`);
+        router.push("/library");
+        return;
+      }
       const { gist } = await api.createGist(kind === "text" ? { text: input, templateId, focus } : { url: input.trim(), templateId, focus });
       setInput("");
       setFocus("");
@@ -52,7 +63,7 @@ export default function NewGist() {
       <Field value={input} onChangeText={setInput} placeholder="Paste a link or text" multiline autoCapitalize="none" autoCorrect={false} />
       <View style={{ flexDirection: "row", gap: 8, alignItems: "center", marginTop: -4, marginBottom: 12 }}>
         <Button title="Paste" onPress={async () => setInput(await Clipboard.getStringAsync())} />
-        {kind && <Text style={{ color: t.muted }}>{KIND[kind]}</Text>}
+        {kind && <Text style={{ color: t.muted }}>{bulk ? `${links.length} links: each gets a gist` : collection && !collection.ambiguous ? "Playlist: up to 25 items" : KIND[kind]}</Text>}
       </View>
       <Field label="What are you looking for? (optional)" value={focus} onChangeText={setFocus} placeholder="e.g. the workout routine" />
       <Text style={{ color: t.text, fontWeight: "600", marginBottom: 8 }}>Format</Text>
@@ -66,7 +77,7 @@ export default function NewGist() {
         );
       })}
       {error && <Text style={{ color: t.danger, marginVertical: 8 }}>{error}</Text>}
-      <Button primary title={busy ? "Starting…" : "Get the gist"} onPress={submit} disabled={busy || !input.trim()} style={{ marginTop: 8 }} />
+      <Button primary title={busy ? "Starting…" : importMode ? "Summarize them all" : "Get the gist"} onPress={submit} disabled={busy || !input.trim()} style={{ marginTop: 8 }} />
     </ScrollView>
   );
 }

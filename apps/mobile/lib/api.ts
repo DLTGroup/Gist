@@ -45,5 +45,7 @@ export const api = {
   updateGist: (id: string, p: { favourite?: boolean; tags?: string[]; folderId?: string | null }) => req<{ gist: Gist }>("PATCH", `/api/gists/${id}`, p),
   deleteGist: (id: string) => req("DELETE", `/api/gists/${id}`),
   send: (id: string, target: ExportTarget) => req<{ url: string | null; openOnClient?: boolean }>("POST", `/api/gists/${id}/send`, { target }),
+  createImport: (b: { url?: string; urls?: string[]; limit?: number; templateId?: string; focus?: string }) =>
+    req<{ import: { id: string; title: string; total: number; folderId: string } }>("POST", "/api/imports", b),
   savings: () => req<{ totals: Totals }>("GET", "/api/savings"),
 };

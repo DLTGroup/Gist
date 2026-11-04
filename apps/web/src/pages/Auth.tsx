@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { BRAND } from "@gist/core";
 import { api } from "../api.ts";
 import { useSession } from "../main.tsx";
+import { Wordmark } from "../components/Wordmark.tsx";
 
 export function AuthPage({ mode }: { mode: "signin" | "signup" }) {
   const { signIn } = useSession();
@@ -33,7 +34,7 @@ export function AuthPage({ mode }: { mode: "signin" | "signup" }) {
   return (
     <div className="auth">
       <Link to="/" className="brand" style={{ justifyContent: "center" }}>
-        <img src={`${import.meta.env.BASE_URL}icon.svg`} alt="" width={28} height={28} /> {BRAND.name}
+        <img src={`${import.meta.env.BASE_URL}icon.svg`} alt="" width={28} height={28} /> <Wordmark size="1.4rem" />
       </Link>
       <form className="card" onSubmit={submit}>
         <h1>{mode === "signup" ? "Create your account" : "Welcome back"}</h1>

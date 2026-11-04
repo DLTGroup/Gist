@@ -14,6 +14,7 @@ describe("source detection", () => {
     expect(detectSourceKind("https://podcasts.apple.com/ca/podcast/x/id123?i=456")).toBe("podcast");
     expect(detectSourceKind("https://open.spotify.com/episode/abc")).toBe("podcast");
     expect(detectSourceKind("https://feeds.example.com/show.xml")).toBe("podcast");
+    expect(detectSourceKind("https://cdn.example.com/show.xml#episode=Ep%201")).toBe("podcast");
     expect(detectSourceKind("https://example.com/blog/post")).toBe("web");
     expect(detectSourceKind("just some notes")).toBe("text");
   });

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { BRAND, formatMinutes, formatMoney } from "@gist/core";
 import { useSession } from "../main.tsx";
+import { Wordmark } from "../components/Wordmark.tsx";
 
 /** Marketing page with a live savings calculator: the core pitch is time, money and effort saved. */
 export function Landing() {
@@ -19,7 +20,7 @@ export function Landing() {
     <div className="landing">
       <header>
         <div className="brand">
-          <img src={`${import.meta.env.BASE_URL}icon.svg`} alt="" width={28} height={28} /> {BRAND.name}
+          <img src={`${import.meta.env.BASE_URL}icon.svg`} alt="" width={28} height={28} /> <Wordmark />
         </div>
         <div className="row">
           {user ? (

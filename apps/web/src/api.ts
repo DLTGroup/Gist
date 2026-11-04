@@ -63,6 +63,21 @@ export interface SavingsReport {
   byKind: (Totals & { kind: string })[];
   assumptions: { readingWpm: number; noteTakingFactor: number; hourlyRate: number; currency: string; playbackSpeed: number };
 }
+export interface ImportStatus {
+  id: string;
+  title: string;
+  kind: string;
+  sourceUrl: string | null;
+  folderId: string | null;
+  createdAt: string;
+  skipped: { title: string | null; reason: string }[];
+  total: number;
+  ready: number;
+  failed: number;
+  processing: number;
+  totals: Totals;
+  gists?: Gist[];
+}
 export interface Totals {
   gists: number;
   minutesSaved: number;
@@ -105,6 +120,11 @@ export const api = {
   regenerate: (id: string, templateId?: string, focus?: string) => req<{ gist: Gist }>("POST", `/api/gists/${id}/regenerate`, { templateId, focus }),
   send: (id: string, target: ExportTarget) => req<{ url: string | null; openOnClient?: boolean }>("POST", `/api/gists/${id}/send`, { target }),
   savings: () => req<SavingsReport>("GET", "/api/savings"),
+  createImport: (b: { url?: string; urls?: string[]; limit?: number; templateId?: string; focus?: string; folderId?: string | null; title?: string }) =>
+    req<{ import: ImportStatus }>("POST", "/api/imports", b),
+  imports: () => req<{ imports: ImportStatus[] }>("GET", "/api/imports"),
+  importStatus: (id: string) => req<{ import: ImportStatus }>("GET", `/api/imports/${id}`),
+  retryImport: (id: string) => req<{ retried: number }>("POST", `/api/imports/${id}/retry`),
 
   /** Downloads an export file using the auth header (a plain link can't carry it). */
   async download(path: string) {

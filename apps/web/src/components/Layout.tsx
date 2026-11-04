@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import type { Folder } from "@gist/core";
-import { BRAND, formatMinutes, formatMoney } from "@gist/core";
+import { formatMinutes, formatMoney } from "@gist/core";
 import { api, type Totals } from "../api.ts";
 import { useSession } from "../main.tsx";
+import { Wordmark } from "./Wordmark.tsx";
 
 export function Layout() {
   const { demo } = useSession();
@@ -20,7 +21,7 @@ export function Layout() {
       <aside className="sidebar">
         <NavLink to="/" className="brand">
           <img src={`${import.meta.env.BASE_URL}icon.svg`} alt="" />
-          {BRAND.name}
+          <Wordmark />
         </NavLink>
         <nav className="nav">
           <NavLink to="/app/new"><span aria-hidden>＋</span> New gist</NavLink>

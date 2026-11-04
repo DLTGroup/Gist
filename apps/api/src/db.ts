@@ -81,8 +81,23 @@ export function openDb(path: string): DB {
       detail TEXT,
       created_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS imports (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      kind TEXT NOT NULL,
+      source_url TEXT,
+      title TEXT NOT NULL,
+      folder_id TEXT REFERENCES folders(id) ON DELETE SET NULL,
+      template_id TEXT NOT NULL,
+      skipped_json TEXT NOT NULL DEFAULT '[]',
+      created_at TEXT NOT NULL
+    );
     CREATE VIRTUAL TABLE IF NOT EXISTS gists_fts USING fts5(gist_id UNINDEXED, user_id UNINDEXED, title, body, tags, tokenize = 'porter unicode61');
   `);
+  // Lightweight migrations for databases created by earlier versions.
+  const cols = (db.prepare("PRAGMA table_info(gists)").all() as { name: string }[]).map((c) => c.name);
+  if (!cols.includes("import_id")) db.exec("ALTER TABLE gists ADD COLUMN import_id TEXT REFERENCES imports(id) ON DELETE SET NULL");
+  db.exec("CREATE INDEX IF NOT EXISTS gists_import ON gists(import_id)");
   return db;
 }
 

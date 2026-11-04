@@ -64,7 +64,11 @@ async function resolveEpisode(url: string): Promise<Episode> {
 
   const res = await fetchWithLimits(url, { headers: { accept: "application/rss+xml, application/xml, text/xml, text/html" } });
   const body = await res.bodyText();
-  if (/^\s*(<\?xml[^>]*>\s*)?<rss/i.test(body)) return pickFromFeed(body, null);
+  if (/^\s*(<\?xml[^>]*>\s*)?<rss/i.test(body)) {
+    // Links made by a feed import carry the episode title: …/feed.xml#episode=Title
+    const wanted = u.hash.startsWith("#episode=") ? decodeURIComponent(u.hash.slice(9)) : null;
+    return pickFromFeed(body, wanted);
+  }
 
   // A show or episode web page: look for its RSS feed and match the episode by title.
   const feedHref = body.match(/<link[^>]+type=["']application\/rss\+xml["'][^>]*>/i)?.[0].match(/href=["']([^"']+)["']/i)?.[1];
