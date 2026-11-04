@@ -1,0 +1,23 @@
+{
+  "name": "gist-platform",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Gist (working name; alt. Briefly) — turn YouTube videos, podcasts and articles into tailored, organized notes and show the time, money and effort saved.",
+  "workspaces": ["packages/*", "apps/api", "apps/web", "apps/desktop"],
+  "scripts": {
+    "dev": "npm run dev -w @gist/api & npm run dev -w @gist/web",
+    "dev:api": "npm run dev -w @gist/api",
+    "dev:web": "npm run dev -w @gist/web",
+    "dev:desktop": "npm run dev -w @gist/desktop",
+    "build": "npm run build -w @gist/web",
+    "start": "npm run start -w @gist/api",
+    "test": "vitest run",
+    "typecheck": "tsc -p packages/core && tsc -p apps/api && tsc -p apps/web"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4",
+    "@types/node": "^22.15.0"
+  },
+  "engines": { "node": ">=22.5" }
+}

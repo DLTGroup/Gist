@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "Gist",
+    "slug": "gist",
+    "scheme": "gist",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "ios": { "bundleIdentifier": "app.gist.mobile", "supportsTablet": true },
+    "android": {
+      "package": "app.gist.mobile",
+      "adaptiveIcon": { "foregroundImage": "./assets/icon.png", "backgroundColor": "#0f766e" }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-share-intent",
+        {
+          "iosActivationRules": { "NSExtensionActivationSupportsWebURLWithMaxCount": 1, "NSExtensionActivationSupportsText": true },
+          "androidIntentFilters": ["text/*"]
+        }
+      ]
+    ],
+    "experiments": { "typedRoutes": false },
+    "extra": { "apiUrl": "http://localhost:8787" }
+  }
+}

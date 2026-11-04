@@ -1,0 +1,24 @@
+{
+  "name": "@gist/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Gist desktop app for macOS, Windows and Linux",
+  "main": "main.cjs",
+  "scripts": {
+    "dev": "electron .",
+    "dist": "electron-builder --publish never"
+  },
+  "devDependencies": {
+    "electron": "^37.2.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "app.gist.desktop",
+    "productName": "Gist",
+    "files": ["main.cjs", "preload.cjs", "build/icon.png"],
+    "protocols": [{ "name": "Gist", "schemes": ["gist"] }],
+    "mac": { "category": "public.app-category.productivity", "target": ["dmg"] },
+    "win": { "target": ["nsis"] },
+    "linux": { "target": ["AppImage", "deb"], "category": "Office" }
+  }
+}

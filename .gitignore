@@ -1,0 +1,8 @@
+node_modules
+dist
+out
+*.db
+*.db-*
+.env
+.expo
+apps/desktop/web-dist
