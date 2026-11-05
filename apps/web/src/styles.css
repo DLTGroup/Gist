@@ -58,6 +58,7 @@ button:hover, .btn:hover { background: var(--surface-2); text-decoration: none; 
 button:disabled { opacity: 0.55; cursor: default; }
 .btn-primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
 .btn-primary:hover { background: var(--accent); filter: brightness(1.08); }
+.share-open { display: inline-flex; align-items: center; gap: 0.45rem; padding-inline: 1rem; border-radius: 999px; }
 .btn-ghost { border-color: transparent; background: transparent; }
 .btn-danger { color: var(--danger); }
 input, textarea, select {
