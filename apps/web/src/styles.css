@@ -200,6 +200,14 @@ label { display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.3
 .seg button.on { background: var(--text); color: var(--bg); }
 .share-link { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
 .share-link input { flex: 1; min-width: 180px; }
-.share-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
-.share-btn { display: flex; align-items: center; justify-content: center; padding: 0.65rem; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); color: var(--text); text-decoration: none; font-weight: 600; }
+/* share: one tile per network, brand colour only on hover */
+.nets { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0.5rem; margin-top: 0.45rem; }
+.net { display: grid; justify-items: center; gap: 0.35rem; padding: 0; border: 0; background: none; color: var(--muted); font-size: 0.72rem; text-decoration: none; cursor: pointer; }
+.net .tile { width: 100%; max-width: 48px; aspect-ratio: 1; display: grid; place-items: center; border-radius: 14px; border: 1px solid var(--border); background: var(--surface); color: var(--text); transition: background 0.2s, border-color 0.2s, color 0.2s, transform 0.2s; }
+.net:hover .tile, .net:focus-visible .tile { background: var(--brand); border-color: transparent; color: #fff; transform: translateY(-2px); }
+.net .lb { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.share-acts { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 0.5rem; }
+.share-acts button { padding: 0.6rem; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-weight: 600; white-space: nowrap; }
+@media (prefers-color-scheme: dark) { :root { --brand-x: #2b3331; } }
+@media (max-width: 520px) { .nets { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 0.9rem; } }
 @media (max-width: 720px) { .sheet { grid-template-columns: 1fr; padding: 1rem; } .sheet-preview canvas { max-height: 46vh; object-fit: contain; } }

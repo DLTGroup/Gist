@@ -1,16 +1,19 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { shareLinks, shareMessage, type Gist } from "@gist/core";
 import { api, type ShareInfo } from "../api.ts";
 import { canvasToBlob, drawShareCard, type CardFormat } from "../lib/shareCard.ts";
+import { BRAND_COLOURS, BrandIcon, type BrandKey } from "../lib/brandIcons.tsx";
 
-const NETWORKS = [
+const NETWORKS: { key: BrandKey; label: string }[] = [
   { key: "x", label: "X" },
+  { key: "reddit", label: "Reddit" },
   { key: "whatsapp", label: "WhatsApp" },
   { key: "facebook", label: "Facebook" },
   { key: "linkedin", label: "LinkedIn" },
-] as const;
+  { key: "instagram", label: "Instagram" },
+];
 
-/** Share sheet: a public link with a preview card, links for X, WhatsApp, Facebook and LinkedIn, and an image for Instagram. */
+/** Share sheet: a public link with a preview card, links for X, Reddit, WhatsApp, Facebook and LinkedIn, and an image for Instagram. */
 export function ShareSheet({ gist, onClose }: { gist: Gist; onClose: () => void }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const [format, setFormat] = useState<CardFormat>("post");
@@ -27,7 +30,7 @@ export function ShareSheet({ gist, onClose }: { gist: Gist; onClose: () => void 
     return () => document.removeEventListener("keydown", esc);
   }, [onClose]);
 
-  const links = shareLinks(message, share?.url ?? null);
+  const links = shareLinks(message, share?.url ?? null, gist.summary!.title);
 
   async function createLink() {
     setBusy(true);
@@ -95,19 +98,34 @@ export function ShareSheet({ gist, onClose }: { gist: Gist; onClose: () => void 
             <label htmlFor="share-msg">Message</label>
             <textarea id="share-msg" rows={5} value={message} onChange={(e) => setMessage(e.target.value)} />
           </div>
-          <div className="share-grid">
-            {NETWORKS.map((n) => {
-              const href = links[n.key];
-              return href ? (
-                <a key={n.key} className="share-btn" href={href} target="_blank" rel="noopener noreferrer">{n.label}</a>
-              ) : (
-                <button key={n.key} className="share-btn" onClick={() => setNote(`${n.label} needs a share link. Create one first.`)}>{n.label}</button>
-              );
-            })}
-            <button className="share-btn" onClick={shareImage}>Instagram</button>
-            <button className="share-btn" onClick={shareImage}>Save image</button>
-            <button className="share-btn" onClick={() => copy(share ? `${message}\n\n${share.url}` : message, "Message copied")}>Copy message</button>
-            {"share" in navigator && <button className="share-btn" onClick={() => navigator.share({ title: gist.summary!.title, text: message, url: share?.url }).catch(() => {})}>More…</button>}
+          <div>
+            <div className="muted small" style={{ fontWeight: 600 }}>Share to</div>
+            <div className="nets">
+              {NETWORKS.map((n) => {
+                const tile = (
+                  <>
+                    <span className="tile"><BrandIcon name={n.key} /></span>
+                    <span className="lb">{n.label}</span>
+                  </>
+                );
+                const style = { "--brand": BRAND_COLOURS[n.key] } as CSSProperties;
+                if (n.key === "instagram") {
+                  return <button key={n.key} className="net" style={style} onClick={shareImage} aria-label="Share the image to Instagram">{tile}</button>;
+                }
+                const href = links[n.key];
+                if (!href) {
+                  return <button key={n.key} className="net" style={style} onClick={() => setNote(`${n.label} needs a share link. Create one first.`)} aria-label={`Share to ${n.label}`}>{tile}</button>;
+                }
+                // Reddit can drop a prefilled text body, so the message also goes on the clipboard.
+                const onClick = n.key === "reddit" && !share ? () => void copy(message, "Message copied, in case Reddit leaves the text box empty.") : undefined;
+                return <a key={n.key} className="net" style={style} href={href} target="_blank" rel="noopener noreferrer" onClick={onClick} aria-label={`Share to ${n.label}`}>{tile}</a>;
+              })}
+            </div>
+          </div>
+          <div className="share-acts">
+            <button onClick={() => copy(share ? `${message}\n\n${share.url}` : message, "Message copied")}>Copy text</button>
+            <button onClick={shareImage}>Save image</button>
+            {"share" in navigator && <button onClick={() => navigator.share({ title: gist.summary!.title, text: message, url: share?.url }).catch(() => {})}>More…</button>}
           </div>
           {note && <p className="muted small" role="status">{note}</p>}
         </div>

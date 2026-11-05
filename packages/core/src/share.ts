@@ -38,16 +38,23 @@ export function shareMessage(g: Gist): string {
   return `${g.summary.title}\n\n${g.summary.tldr}${points.length ? "\n\n" + points.join("\n") : ""}${saved} Summarized with ${BRAND.name}.`;
 }
 
-export type ShareNetwork = "x" | "facebook" | "whatsapp" | "linkedin";
+export type ShareNetwork = "x" | "reddit" | "facebook" | "whatsapp" | "linkedin";
 
-/** Web share links for each network. X posts are trimmed to fit with the link. Facebook only takes a URL. */
-export function shareLinks(message: string, url: string | null): Record<ShareNetwork, string | null> {
+/**
+ * Web share links for each network. X posts are trimmed to fit with the link. Facebook only takes a URL.
+ * Reddit gets a link post when there is a URL; otherwise a text post (Reddit may leave the body empty, so callers also copy the message).
+ */
+export function shareLinks(message: string, url: string | null, title?: string): Record<ShareNetwork, string | null> {
   const enc = encodeURIComponent;
   const xRoom = 280 - (url ? 24 : 0) - 1;
   const xText = message.length > xRoom ? message.slice(0, message.lastIndexOf(" ", xRoom - 1)) + "…" : message;
   const withUrl = url ? `${message}\n\n${url}` : message;
+  const redditTitle = (title ?? message.split("\n")[0]).slice(0, 300); // Reddit caps titles at 300 characters
   return {
     x: `https://x.com/intent/post?text=${enc(xText)}${url ? `&url=${enc(url)}` : ""}`,
+    reddit: url
+      ? `https://www.reddit.com/submit?url=${enc(url)}&title=${enc(redditTitle)}`
+      : `https://www.reddit.com/submit?type=TEXT&title=${enc(redditTitle)}&text=${enc(message)}`,
     facebook: url ? `https://www.facebook.com/sharer/sharer.php?u=${enc(url)}` : null,
     whatsapp: `https://wa.me/?text=${enc(withUrl)}`,
     linkedin: url ? `https://www.linkedin.com/sharing/share-offsite/?url=${enc(url)}` : `https://www.linkedin.com/feed/?shareActive=true&text=${enc(message)}`,

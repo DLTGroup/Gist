@@ -86,6 +86,8 @@ describe("listen and share helpers", () => {
     expect(withUrl.facebook).toBe("https://www.facebook.com/sharer/sharer.php?u=https%3A%2F%2Fgist.example.ca%2Fs%2Fabc");
     expect(withUrl.whatsapp).toContain(encodeURIComponent("https://gist.example.ca/s/abc"));
     expect(shareLinks(msg, null).facebook).toBeNull();
+    expect(withUrl.reddit).toBe(`https://www.reddit.com/submit?url=${encodeURIComponent("https://gist.example.ca/s/abc")}&title=${encodeURIComponent(msg.split("\n")[0])}`);
+    expect(shareLinks(msg, null, "My title").reddit).toMatch(/^https:\/\/www\.reddit\.com\/submit\?type=TEXT&title=My%20title&text=/);
     const long = shareLinks("word ".repeat(100), "https://x.y/s/1").x!;
     expect(decodeURIComponent(long.split("text=")[1].split("&url=")[0]).length).toBeLessThanOrEqual(256);
   });

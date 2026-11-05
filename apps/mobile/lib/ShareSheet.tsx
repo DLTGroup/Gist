@@ -50,7 +50,7 @@ export function ShareSheet({ gist, visible, onClose }: { gist: Gist; visible: bo
 
   useEffect(() => { if (visible) api.getShare(gist.id).then((r) => setShare(r.share), () => {}); }, [visible, gist.id]);
 
-  const links = shareLinks(message, share?.url ?? null);
+  const links = shareLinks(message, share?.url ?? null, gist.summary?.title);
   const capture = (result: "tmpfile" | "data-uri") => captureRef(card, { format: "png", width: 1080, height: 1080, result });
 
   const createLink = async () => {
@@ -106,6 +106,7 @@ export function ShareSheet({ gist, visible, onClose }: { gist: Gist; visible: bo
         <TextInput multiline value={message} onChangeText={setMessage} style={{ color: t.text, borderWidth: 1, borderColor: t.border, borderRadius: 10, padding: 10, minHeight: 110, textAlignVertical: "top" }} accessibilityLabel="Message" />
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
           <B label="X" onPress={() => open(links.x, "X")} />
+          <B label="Reddit" onPress={() => { if (!share) Clipboard.setStringAsync(message); open(links.reddit, "Reddit"); }} />
           <B label="WhatsApp" onPress={() => open(links.whatsapp, "WhatsApp")} />
           <B label="Facebook" onPress={() => open(links.facebook, "Facebook")} />
           <B label="LinkedIn" onPress={() => open(links.linkedin, "LinkedIn")} />
