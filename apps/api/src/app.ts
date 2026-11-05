@@ -240,9 +240,13 @@ export function createApp({ db, summarizer, ingestFn = ingest, expandFn = expand
       const src = await ingestFn(input);
       const settings = getSettings(db, g.userId);
       const wordCount = countWords(src.text);
-      const sourceMeta = { kind: src.kind, url: src.url, title: src.title, author: src.author, publishedAt: src.publishedAt, thumbnailUrl: src.thumbnailUrl, durationSeconds: src.durationSeconds, language: src.language ?? null, audioUrl: src.audioUrl ?? null, links: src.links ?? [], wordCount };
+      const sourceMeta = { kind: src.kind, url: src.url, title: src.title, author: src.author, publishedAt: src.publishedAt, thumbnailUrl: src.thumbnailUrl, durationSeconds: src.durationSeconds, language: src.language ?? null, audioUrl: src.audioUrl ?? null, links: src.links ?? [], wordCount, ...(src.video ? { video: src.video } : {}) };
       db.prepare("UPDATE gists SET source_json = ?, updated_at = ? WHERE id = ?").run(JSON.stringify(sourceMeta), now(), g.id);
-      const { summary, model } = await summarizer.summarize(src, template, g.focus);
+      const { summary, model, estimatedDurationSeconds } = await summarizer.summarize(src, template, g.focus);
+      if (!sourceMeta.durationSeconds && estimatedDurationSeconds) {
+        sourceMeta.durationSeconds = estimatedDurationSeconds;
+        db.prepare("UPDATE gists SET source_json = ? WHERE id = ?").run(JSON.stringify(sourceMeta), g.id);
+      }
       const savings = computeSavings(sourceMeta, summary, { readingWpm: 238, noteTakingFactor: 0.35, hourlyRate: settings.hourlyRate, currency: settings.currency, playbackSpeed: settings.playbackSpeed });
       db.prepare("UPDATE gists SET status = 'ready', error = NULL, summary_json = ?, savings_json = ?, model = ?, updated_at = ? WHERE id = ?").run(
         JSON.stringify(summary), JSON.stringify(savings), model, now(), g.id,

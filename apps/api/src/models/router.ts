@@ -1,6 +1,11 @@
 import type { ExtractionTemplate, IngestedSource } from "@gist/core";
 import { AnthropicSummarizer, DemoSummarizer, SummarizeError, type Summarizer, type SummaryResult } from "../summarize.ts";
 import { OpenAICompatibleSummarizer } from "./openaiCompatible.ts";
+import { GeminiVideoSummarizer } from "./geminiVideo.ts";
+import { videoSummariesEnabled } from "../ingest/index.ts";
+
+/** Default video model for YouTube links Gemini watches directly. Override with GIST_VIDEO_MODEL. */
+export const DEFAULT_VIDEO_MODEL = "gemini-3.8-flash";
 
 /**
  * Model routing. Which model writes gists is a server setting, never a user choice:
@@ -91,13 +96,35 @@ export class ModelRouter implements Summarizer {
   }
 }
 
+/** Sends sources that need the video watched to the video model, and everything else to the text chain. */
+export class MediaRouter implements Summarizer {
+  readonly model: string;
+  constructor(
+    private text: Summarizer,
+    private video: Summarizer,
+  ) {
+    // The text chain's id decides demo mode; the video model is an add-on.
+    this.model = text.model;
+  }
+  summarize(src: IngestedSource, template: ExtractionTemplate, focus?: string | null): Promise<SummaryResult> {
+    return src.video ? this.video.summarize(src, template, focus) : this.text.summarize(src, template, focus);
+  }
+}
+
 /**
  * Reads GIST_MODELS (or the older GIST_MODEL) and builds the chain. Entries whose key is missing
  * are skipped with a warning. With nothing usable, or GIST_SUMMARIZER=demo, the demo extractor runs.
  */
 export function createSummarizer(env: NodeJS.ProcessEnv = process.env, log: (m: string) => void = (m) => console.warn(m)): Summarizer {
   if (env.GIST_SUMMARIZER === "demo") return new DemoSummarizer();
-  const configured = env.GIST_MODELS || env.GIST_MODEL || (env.ANTHROPIC_API_KEY || env.ANTHROPIC_AUTH_TOKEN ? "anthropic/claude-opus-5-5" : "");
+  const text = createTextSummarizer(env, log);
+  if (!videoSummariesEnabled(env)) return text;
+  return new MediaRouter(text, new GeminiVideoSummarizer((env.GIST_VIDEO_MODEL || DEFAULT_VIDEO_MODEL).replace(/^google\//, ""), env.GEMINI_API_KEY!));
+}
+
+function createTextSummarizer(env: NodeJS.ProcessEnv, log: (m: string) => void): Summarizer {
+  const fallbackDefault = env.ANTHROPIC_API_KEY || env.ANTHROPIC_AUTH_TOKEN ? "anthropic/claude-opus-5-5" : env.GEMINI_API_KEY ? `google/${DEFAULT_VIDEO_MODEL}` : "";
+  const configured = env.GIST_MODELS || env.GIST_MODEL || fallbackDefault;
   const chain: Summarizer[] = [];
   for (const spec of parseModelList(configured)) {
     try {

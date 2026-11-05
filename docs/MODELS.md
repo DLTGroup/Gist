@@ -34,6 +34,28 @@ OpenAI-compatible providers are asked for JSON-schema output first. If a provide
 
 The base URLs are built into `apps/api/src/models/router.ts`. They have been checked against the providers' docs from memory, not live. Run the comparison below once per new provider before relying on it.
 
+## YouTube: transcript or the video itself
+
+Gist reads a YouTube video's captions by default, because text is cheap. With a `GEMINI_API_KEY` set, Gemini can also **watch the video** through Google's Interactions API, and `GIST_YOUTUBE_MODE` chooses when:
+
+| Mode | What happens |
+|---|---|
+| `transcript-first` (default) | Captions when the video has them. If it has none, or YouTube blocks the caption request from the server, Gemini watches the video instead. |
+| `video-first` | Gemini watches every video. Summaries can use what's on screen (slides, code, demos), at a higher cost per video. |
+| `transcript-only` | Never watch videos. This is automatic when there is no Gemini key. |
+
+`GIST_VIDEO_MODEL` picks the Gemini model (default `gemini-3.8-flash`), or `off`.
+
+Google's documentation (checked 5 November 2026) gives these limits:
+- YouTube input is in **preview**, and works for **public videos only** (not private or unlisted).
+- The free tier is capped at 8 hours of YouTube video a day; the paid tier has no length cap.
+- A video costs about **100 tokens per second** at default resolution, so 30 minutes ≈ 180,000 input tokens.
+- Videos up to about 3 hours are supported on 1M-context models.
+
+Gemini 3.8 Flash was listed at US$0.75 per million input tokens and $3.75 per million output tokens through 31 December 2026, doubling from 1 January 2027. On those prices, watching a 30-minute video costs roughly US$0.14 at the 2026 price and $0.27 from 2027, against roughly a cent for the transcript. Check the [pricing page](https://ai.google.dev/gemini-api/docs/pricing) before relying on this.
+
+Sources: [video understanding](https://ai.google.dev/gemini-api/docs/video-understanding), [models](https://ai.google.dev/gemini-api/docs/models), [Interactions API](https://ai.google.dev/gemini-api/docs/interactions-overview).
+
 ## Pick the cheapest model that is good enough
 
 ```
