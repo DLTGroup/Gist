@@ -1,6 +1,6 @@
 # Gist (working name; alternate: Briefly)
 
-**Get the point. Skip the hour.** Paste or share a YouTube video, podcast episode or article. Gist pulls out exactly what you asked for, in the format you choose, files it, sends it to your notes app, and shows the time, money and effort you saved.
+**Get to the point. Skip the wait.** Paste or share a YouTube video, podcast episode or article. Gist pulls out exactly what you asked for, in the format you choose, files it, sends it to your notes app, and shows the time, money and effort you saved.
 
 This is the first end-to-end build: one backend, a web app, a desktop app (macOS, Windows, Linux) and a mobile app (Android, iOS).
 

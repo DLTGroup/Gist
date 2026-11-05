@@ -39,7 +39,7 @@ export function Landing() {
       <section className="hero">
         <div>
           <span className="pill pill-accent">YouTube · Podcasts · Articles</span>
-          <h1 style={{ marginTop: "0.8rem" }}>Get the point.<br />Skip the hour.</h1>
+          <h1 style={{ marginTop: "0.8rem" }}>Get to the point.<br />Skip the wait.</h1>
           <p className="lead">
             Paste a link to a video, podcast or blog post. {BRAND.name} pulls out exactly what you asked for, in the format you want, files it, and
             sends it to your notes app. Then it shows you the time and money you just saved.

@@ -122,7 +122,7 @@ export function drawShareCard(canvas: HTMLCanvasElement, g: Gist, format: CardFo
     x.font = `600 30px ${sans}`;
     x.fillStyle = PAPER;
     x.textAlign = "center";
-    x.fillText("Get the point. Skip the hour.", W / 2, H - 110);
+    x.fillText("Get to the point. Skip the wait.", W / 2, H - 110);
     x.textAlign = "left";
   }
 }

@@ -4,7 +4,7 @@ import type { SourceKind, SourceLink } from "./types.ts";
 export const BRAND = {
   name: "Gist",
   altName: "Briefly",
-  tagline: "Get the point. Skip the hour.",
+  tagline: "Get to the point. Skip the wait.",
 } as const;
 
 const YT_HOSTS = new Set(["youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com", "youtu.be", "www.youtube-nocookie.com"]);
