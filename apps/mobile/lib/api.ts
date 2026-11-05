@@ -32,6 +32,12 @@ async function req<T>(method: string, path: string, body?: unknown): Promise<T> 
 export interface Me { id: string; email: string; name: string | null; settings: UserSettings }
 export interface Totals { gists: number; minutesSaved: number; moneySaved: number; wordsAvoided: number; originalMinutes: number; gistMinutes: number; currency: string }
 
+export interface ShareInfo {
+  url: string;
+  cardUrl: string | null;
+  createdAt: string;
+}
+
 export const api = {
   signup: (email: string, password: string) => req<{ token: string; user: Me }>("POST", "/api/auth/signup", { email, password }),
   login: (email: string, password: string) => req<{ token: string; user: Me }>("POST", "/api/auth/login", { email, password }),
@@ -48,4 +54,7 @@ export const api = {
   createImport: (b: { url?: string; urls?: string[]; limit?: number; templateId?: string; focus?: string }) =>
     req<{ import: { id: string; title: string; total: number; folderId: string } }>("POST", "/api/imports", b),
   savings: () => req<{ totals: Totals }>("GET", "/api/savings"),
+  getShare: (id: string) => req<{ share: ShareInfo | null }>("GET", `/api/gists/${id}/share`),
+  createShare: (id: string, card?: string) => req<{ share: ShareInfo }>("POST", `/api/gists/${id}/share`, { card }),
+  deleteShare: (id: string) => req("DELETE", `/api/gists/${id}/share`),
 };

@@ -4,6 +4,8 @@ import type { ExtractionTemplate, Folder, Gist } from "@gist/core";
 import { formatMinutes, formatMoney, formatTimestamp, sourceLinks, timestampLink, toPlainText } from "@gist/core";
 import { api, openExternal } from "../api.ts";
 import { useSession } from "../main.tsx";
+import { ListenBar } from "../components/ListenBar.tsx";
+import { ShareSheet } from "../components/ShareSheet.tsx";
 
 export function GistView() {
   const { id } = useParams();
@@ -11,6 +13,7 @@ export function GistView() {
   const [gist, setGist] = useState<Gist | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [folders, setFolders] = useState<Folder[]>([]);
+  const [sharing, setSharing] = useState(false);
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
@@ -42,7 +45,7 @@ export function GistView() {
       <div className="gist-head">
         {gist.source.thumbnailUrl ? <img src={gist.source.thumbnailUrl} alt="" /> : <div className="thumb card" style={{ aspectRatio: "16/9", display: "grid", placeItems: "center", fontSize: "2rem" }}>{icon(gist)}</div>}
         <div>
-          <h1>{gist.summary?.title ?? gist.source.title}</h1>
+          <h1 data-say="title">{gist.summary?.title ?? gist.source.title}</h1>
           <p className="muted small">
             {icon(gist)}{" "}
             {gist.source.url ? <a href={gist.source.url} target="_blank" rel="noreferrer">{gist.source.title}</a> : gist.source.title}
@@ -60,6 +63,7 @@ export function GistView() {
                 {folders.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
               </select>
               <span className="spacer" />
+              <button onClick={() => setSharing(true)}>Share</button>
               <ExportMenu gist={gist} />
             </div>
           )}
@@ -96,20 +100,21 @@ export function GistView() {
               <div className="stat"><span className="v">{formatMinutes(gist.savings.gistMinutes)}</span><span className="l">to read this gist</span></div>
             </div>
           )}
+          <ListenBar gist={gist} />
           {gist.focus && <p className="pill pill-accent">Looking for: {gist.focus}</p>}
-          <p className="tldr"><strong>TL;DR</strong> {gist.summary.tldr}</p>
+          <p className="tldr" data-say="tldr"><strong>TL;DR</strong> {gist.summary.tldr}</p>
 
           {gist.summary.sections.map((sec) => {
             if (!sec.paragraph && !sec.items.length) return null;
             const List = sec.format === "numbered" ? "ol" : "ul";
             return (
               <section className="section" key={sec.id}>
-                <h2>{sec.heading}</h2>
-                {sec.paragraph && <p>{sec.paragraph}</p>}
+                <h2 data-say={`h:${sec.id}`}>{sec.heading}</h2>
+                {sec.paragraph && <p data-say={`p:${sec.id}`}>{sec.paragraph}</p>}
                 {sec.items.length > 0 && (
                   <List>
                     {sec.items.map((it, i) => (
-                      <li key={i} className={sec.format === "checklist" ? "check" : undefined}>
+                      <li key={i} data-say={`i:${sec.id}:${i}`} className={sec.format === "checklist" ? "check" : undefined}>
                         {sec.format === "checklist" && <input type="checkbox" aria-label="Done" />}
                         <span>
                           {it.text}
@@ -132,6 +137,7 @@ export function GistView() {
           </p>
         </>
       )}
+      {sharing && gist.summary && <ShareSheet gist={gist} onClose={() => setSharing(false)} />}
     </article>
   );
 }

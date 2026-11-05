@@ -6,11 +6,15 @@ import { formatMinutes, formatMoney, formatTimestamp, sourceLinks, timestampLink
 import { api } from "../../lib/api";
 import { useTheme } from "../../lib/theme";
 import { Button } from "../../lib/ui";
+import { ListenBar } from "../../lib/ListenBar";
+import { ShareSheet } from "../../lib/ShareSheet";
 
 export default function GistScreen() {
   const t = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [g, setG] = useState<Gist | null>(null);
+  const [sharing, setSharing] = useState(false);
+  const [speaking, setSpeaking] = useState<string | null>(null);
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
@@ -72,7 +76,8 @@ export default function GistScreen() {
               <Text style={{ color: t.save, backgroundColor: t.saveSoft, padding: 8, borderRadius: 10, fontWeight: "700" }}>{formatMoney(g.savings.moneySaved, g.savings.currency)}</Text>
             </View>
           )}
-          <Text style={{ color: t.text, fontSize: 16, marginTop: 16, borderLeftWidth: 4, borderLeftColor: t.accent, paddingLeft: 10 }}>
+          <ListenBar gist={g} onSegment={setSpeaking} />
+          <Text style={{ color: t.text, fontSize: 16, marginTop: 16, backgroundColor: speaking === "tldr" ? "rgba(251,191,36,.22)" : undefined, borderLeftWidth: 4, borderLeftColor: t.accent, paddingLeft: 10 }}>
             <Text style={{ fontWeight: "800" }}>TL;DR </Text>
             {g.summary.tldr}
           </Text>
@@ -85,7 +90,7 @@ export default function GistScreen() {
                   const link = it.timestamp != null ? timestampLink(g.source.kind, g.source.url, it.timestamp, g.source.audioUrl) : null;
                   const bullet = sec.format === "numbered" ? `${i + 1}.` : sec.format === "checklist" ? "☐" : "•";
                   return (
-                    <Text key={i} style={{ color: t.text, lineHeight: 22, marginBottom: 6 }}>
+                    <Text key={i} style={{ color: t.text, lineHeight: 22, marginBottom: 6, backgroundColor: speaking === `i:${sec.id}:${i}` ? "rgba(251,191,36,.22)" : undefined }}>
                       {bullet} {it.text}
                       {it.timestamp != null && (
                         <Text style={{ color: link ? t.accent : t.muted }} onPress={() => link && Linking.openURL(link)}> ({formatTimestamp(it.timestamp)})</Text>
@@ -108,11 +113,13 @@ export default function GistScreen() {
             </View>
           )}
           <View style={{ flexDirection: "row", gap: 10, marginTop: 24 }}>
+            <Button title="Share" primary onPress={() => setSharing(true)} />
             <Button title={g.favourite ? "★ Favourite" : "☆ Favourite"} onPress={async () => setG((await api.updateGist(g.id, { favourite: !g.favourite })).gist)} />
             <Button title="Delete" onPress={() => Alert.alert("Delete this gist?", undefined, [{ text: "Cancel", style: "cancel" }, { text: "Delete", style: "destructive", onPress: async () => { await api.deleteGist(g.id); router.back(); } }])} />
           </View>
         </>
       )}
+      {g.status === "ready" && g.summary && <ShareSheet gist={g} visible={sharing} onClose={() => setSharing(false)} />}
     </ScrollView>
   );
 }

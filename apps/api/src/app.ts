@@ -23,6 +23,8 @@ import { IngestError, ingest } from "./ingest/index.ts";
 import { MAX_IMPORT_ITEMS, expandCollection, type Collection } from "./ingest/playlist.ts";
 import { SummarizeError, type Summarizer } from "./summarize.ts";
 import { ExportError, sendToTarget } from "./exporters.ts";
+import { renderSharePage } from "./sharePage.ts";
+import { randomBytes } from "node:crypto";
 
 type Env = { Variables: { userId: string } };
 type Row = Record<string, unknown>;
@@ -67,6 +69,26 @@ export function createApp({ db, summarizer, ingestFn = ingest, expandFn = expand
   const body = async <T>(c: Context): Promise<T> => (await c.req.json().catch(() => ({}))) as T;
 
   // ---------- public ----------
+  // Share pages: anyone with the link can read the summary. Turning sharing off deletes the token.
+  const sharedGist = (token: string) => {
+    const r = db.prepare("SELECT s.token, s.card IS NOT NULL AS has_card, g.* FROM shares s JOIN gists g ON g.id = s.gist_id WHERE s.token = ? AND g.status = 'ready'").get(token) as Row | undefined;
+    return r ? { gist: rowToGist(db, r), hasCard: !!r.has_card } : null;
+  };
+  app.get("/s/:token", (c) => {
+    const found = sharedGist(c.req.param("token"));
+    if (!found) return c.html("<!doctype html><title>Not found</title><p style=\"font-family:system-ui;padding:2rem\">This shared gist doesn't exist or is no longer shared.</p>", 404);
+    const base = publicBase(c);
+    const url = `${base}/s/${c.req.param("token")}`;
+    c.header("cache-control", "public, max-age=300");
+    return c.html(renderSharePage(found.gist, { url, cardUrl: found.hasCard ? `${url}/card.png` : null, appUrl: base + "/" }));
+  });
+  app.get("/s/:token/card.png", (c) => {
+    const r = db.prepare("SELECT card FROM shares WHERE token = ?").get(c.req.param("token")) as { card: Uint8Array | null } | undefined;
+    if (!r?.card) return c.json({ error: "Not found" }, 404);
+    return c.body(Buffer.from(r.card), 200, { "content-type": "image/png", "cache-control": "public, max-age=3600" });
+  });
+
+
   app.get("/api/health", (c) => c.json({ ok: true, model: summarizer.model, demo: summarizer.model.startsWith("demo") }));
 
   app.post("/api/auth/signup", async (c) => {
@@ -345,6 +367,53 @@ export function createApp({ db, summarizer, ingestFn = ingest, expandFn = expand
       logExport(g.id, target!, false, (e as Error).message);
       throw e;
     }
+  });
+
+  // ---------- share links ----------
+  type ShareRow = { token: string; has_card: number; created_at: string };
+  const publicBase = (c: Context) => {
+    const fixed = process.env.GIST_PUBLIC_URL?.replace(/\/$/, "");
+    if (fixed) return fixed;
+    const u = new URL(c.req.url);
+    const proto = c.req.header("x-forwarded-proto")?.split(",")[0].trim() || u.protocol.replace(":", "");
+    const host = c.req.header("x-forwarded-host")?.split(",")[0].trim() || c.req.header("host") || u.host;
+    return `${proto}://${host}`;
+  };
+  const shareRow = (gistId: string) => db.prepare("SELECT token, card IS NOT NULL AS has_card, created_at FROM shares WHERE gist_id = ?").get(gistId) as ShareRow | undefined;
+  const shareJson = (c: Context, r: ShareRow | undefined) => {
+    if (!r) return null;
+    const base = publicBase(c);
+    return { url: `${base}/s/${r.token}`, cardUrl: r.has_card ? `${base}/s/${r.token}/card.png` : null, createdAt: r.created_at };
+  };
+  /** Accepts the share card as a PNG data URL drawn by the client. */
+  const parseCard = (card: unknown): Buffer | null => {
+    if (card == null) return null;
+    const m = typeof card === "string" ? card.match(/^data:image\/png;base64,([A-Za-z0-9+/=]+)$/) : null;
+    if (!m) fail(400, "The share image must be a PNG.");
+    const buf = Buffer.from(m![1], "base64");
+    if (buf.length > 2_500_000) fail(400, "The share image is too large.");
+    if (buf.subarray(0, 8).toString("hex") !== "89504e470d0a1a0a") fail(400, "The share image must be a PNG.");
+    return buf;
+  };
+
+  app.get("/api/gists/:id/share", (c) => c.json({ share: shareJson(c, shareRow(mustGet(c).id)) }));
+
+  app.post("/api/gists/:id/share", async (c) => {
+    const g = mustGet(c);
+    if (g.status !== "ready" || !g.summary) fail(409, "This gist isn't ready to share yet.");
+    const card = parseCard((await body<{ card?: string }>(c)).card);
+    const existing = shareRow(g.id);
+    if (existing) {
+      if (card) db.prepare("UPDATE shares SET card = ? WHERE token = ?").run(card, existing.token);
+    } else {
+      db.prepare("INSERT INTO shares (token, gist_id, user_id, card, created_at) VALUES (?, ?, ?, ?, ?)").run(randomBytes(16).toString("base64url"), g.id, g.userId, card, now());
+    }
+    return c.json({ share: shareJson(c, shareRow(g.id)) });
+  });
+
+  app.delete("/api/gists/:id/share", (c) => {
+    db.prepare("DELETE FROM shares WHERE gist_id = ?").run(mustGet(c).id);
+    return c.json({ ok: true });
   });
 
   app.get("/api/export/evernote", (c) => {

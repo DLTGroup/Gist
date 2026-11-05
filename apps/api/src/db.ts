@@ -98,6 +98,14 @@ export function openDb(path: string): DB {
   const cols = (db.prepare("PRAGMA table_info(gists)").all() as { name: string }[]).map((c) => c.name);
   if (!cols.includes("import_id")) db.exec("ALTER TABLE gists ADD COLUMN import_id TEXT REFERENCES imports(id) ON DELETE SET NULL");
   db.exec("CREATE INDEX IF NOT EXISTS gists_import ON gists(import_id)");
+  // Public share links: one per gist, with the image card the web app drew for previews.
+  db.exec(`CREATE TABLE IF NOT EXISTS shares (
+    token TEXT PRIMARY KEY,
+    gist_id TEXT NOT NULL UNIQUE REFERENCES gists(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    card BLOB,
+    created_at TEXT NOT NULL
+  )`);
   return db;
 }
 
