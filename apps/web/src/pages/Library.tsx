@@ -103,16 +103,7 @@ export function Library() {
         <div className="list">
           {gists.map((g) => (
             <Link key={g.id} to={`/app/g/${g.id}`} className="card gist-row">
-              <div className="thumb-wrap">
-                {g.source.thumbnailUrl ? (
-                  <>
-                    <img src={g.source.thumbnailUrl} alt="" loading="lazy" />
-                    <span className="pf-badge"><PlatformIcon platform={sourcePlatform(g.source)} size={14} /></span>
-                  </>
-                ) : (
-                  <div className="thumb"><PlatformIcon platform={sourcePlatform(g.source)} size={28} /></div>
-                )}
-              </div>
+              
               <div>
                 <h3>{g.favourite && "★ "}{g.summary?.title ?? g.source.title}</h3>
                 <p>{g.status === "processing" ? "Working on it…" : g.status === "failed" ? `Couldn't make this gist: ${g.error}` : g.summary?.tldr}</p>
@@ -122,6 +113,7 @@ export function Library() {
                 {g.savings && <span className="pill pill-save">−{formatMinutes(g.savings.minutesSaved)}</span>}
                 <div className="muted small" style={{ marginTop: "0.3rem" }}>{new Date(g.createdAt).toLocaleDateString("en-CA", { month: "short", day: "numeric" })}</div>
               </div>
+              <span className="pf-mark"><PlatformIcon platform={sourcePlatform(g.source)} size={15} /></span>
             </Link>
           ))}
         </div>

@@ -44,7 +44,7 @@ export function GistView() {
   return (
     <article>
       <div className="gist-head">
-        {gist.source.thumbnailUrl ? <img src={gist.source.thumbnailUrl} alt="" /> : <div className="thumb card" style={{ aspectRatio: "16/9", display: "grid", placeItems: "center" }}><PlatformIcon platform={sourcePlatform(gist.source)} size={44} /></div>}
+        {gist.source.thumbnailUrl ? <img src={gist.source.thumbnailUrl} alt="" /> : <div className="thumb card" style={{ aspectRatio: "16/9", display: "grid", placeItems: "center", color: "var(--muted)" }}><PlatformIcon platform={sourcePlatform(gist.source)} size={40} /></div>}
         <div>
           <h1 data-say="title">{gist.summary?.title ?? gist.source.title}</h1>
           <p className="muted small">

@@ -34,20 +34,12 @@ export default function Library() {
             {g.status === "processing" ? "Working on it…" : g.status === "failed" ? g.error : g.summary?.tldr}
           </Text>
           <View style={{ flexDirection: "row", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-            <Text style={{ color: PLATFORM_COLOUR[sourcePlatform(g.source)] ?? t.text, fontWeight: "700" }}>{PLATFORM_LABEL[sourcePlatform(g.source)]}</Text>
             {g.savings && <Text style={{ color: t.save, backgroundColor: t.saveSoft, paddingHorizontal: 8, borderRadius: 8, fontWeight: "600" }}>−{formatMinutes(g.savings.minutesSaved)}</Text>}
             {g.tags.slice(0, 3).map((tag) => <Text key={tag} style={{ color: t.muted }}>#{tag}</Text>)}
+            {g.source.kind !== "text" && <Text style={{ color: t.muted, opacity: 0.7, marginLeft: "auto", fontSize: 12 }}>{PLATFORM_LABEL[sourcePlatform(g.source)]}</Text>}
           </View>
         </Pressable>
       )}
     />
   );
 }
-
-/** Brand colours for the platform label; web and pasted text use the theme text colour. */
-const PLATFORM_COLOUR: Partial<Record<ReturnType<typeof sourcePlatform>, string>> = {
-  youtube: "#ff0000",
-  spotify: "#1db954",
-  applepodcasts: "#a34ee8",
-  podcast: "#f26522",
-};

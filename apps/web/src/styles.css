@@ -139,17 +139,15 @@ label { display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.3
 
 /* ---------- library ---------- */
 .list { display: grid; gap: 0.6rem; }
-.gist-row { display: grid; grid-template-columns: 96px 1fr auto; gap: 0.9rem; align-items: center; color: var(--text); padding: 0.7rem; }
+.gist-row { position: relative; display: grid; grid-template-columns: 1fr auto; gap: 0.9rem; align-items: center; color: var(--text); padding: 0.7rem; }
 .gist-row:hover { text-decoration: none; border-color: var(--accent); }
-.gist-row img, .gist-row .thumb { width: 96px; aspect-ratio: 16/9; object-fit: cover; border-radius: 8px; background: var(--surface-2); display: grid; place-items: center; font-size: 1.5rem; }
-.gist-row .thumb-wrap { position: relative; display: block; }
-.gist-row .thumb-wrap img { display: block; }
 .pf-ico { display: inline-flex; align-items: center; vertical-align: -0.2em; }
-.pf-badge { position: absolute; right: 4px; bottom: 4px; display: grid; place-items: center; padding: 3px; border-radius: 6px; background: var(--surface); box-shadow: 0 1px 3px rgb(0 0 0 / 0.25); }
-.pf-label { display: inline-flex; align-items: center; gap: 0.3rem; font-weight: 600; color: var(--text); }
+.gist-row .pf-mark { position: absolute; right: 0.9rem; bottom: 0.75rem; color: var(--muted); opacity: 0.7; line-height: 0; pointer-events: none; }
+.gist-row:hover .pf-mark { opacity: 1; }
+.pf-label { display: inline-flex; align-items: center; gap: 0.3rem; }
 .gist-row h3 { margin: 0 0 0.2rem; }
 .gist-row p { margin: 0; color: var(--muted); font-size: 0.88rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-@media (max-width: 760px) { .gist-row { grid-template-columns: 64px 1fr; } .gist-row img, .gist-row .thumb { width: 64px; } .gist-row .meta-right { display: none; } }
+@media (max-width: 760px) { .gist-row { grid-template-columns: 1fr; } .gist-row .meta-right { display: none; } }
 .filters { display: grid; grid-template-columns: 1fr auto auto; gap: 0.5rem; margin-bottom: 1rem; }
 @media (max-width: 760px) { .filters { grid-template-columns: 1fr 1fr; } .filters input { grid-column: 1 / -1; } }
 .tag-cloud { display: flex; gap: 0.35rem; flex-wrap: wrap; margin-bottom: 1rem; }
