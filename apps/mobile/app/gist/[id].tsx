@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Linking, ScrollView, Share, Text, View } from "react-native";
 import { Stack, router, useLocalSearchParams } from "expo-router";
-import type { Gist } from "@gist/core";
+import type { Gist, MemoryCard } from "@gist/core";
 import { formatMinutes, formatMoney, formatTimestamp, sourceLinks, timestampLink, toMarkdown, toPlainText } from "@gist/core";
 import { api } from "../../lib/api";
 import { useTheme } from "../../lib/theme";
@@ -15,6 +15,26 @@ export default function GistScreen() {
   const [g, setG] = useState<Gist | null>(null);
   const [sharing, setSharing] = useState(false);
   const [speaking, setSpeaking] = useState<string | null>(null);
+  const [cards, setCards] = useState<MemoryCard[]>([]);
+  const ready = g?.status === "ready";
+  useEffect(() => {
+    if (ready) api.gistCards(id).then((r) => setCards(r.cards), () => {});
+  }, [ready, id]);
+  const starred = (text: string) => cards.some((c) => c.source?.text === text);
+  const toggleStar = async (sectionId: string, itemIndex: number, text: string) => {
+    try {
+      const mine = cards.filter((c) => c.source?.text === text);
+      if (mine.length) {
+        await Promise.all(mine.map((c) => api.deleteCard(c.id)));
+        setCards((cs) => cs.filter((c) => c.source?.text !== text));
+      } else {
+        const r = await api.starTakeaways(id, { items: [{ sectionId, itemIndex }] });
+        setCards((cs) => [...cs, ...r.cards]);
+      }
+    } catch (e) {
+      Alert.alert("Couldn't update Memory", (e as Error).message);
+    }
+  };
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
@@ -95,12 +115,19 @@ export default function GistScreen() {
                       {it.timestamp != null && (
                         <Text style={{ color: link ? t.accent : t.muted }} onPress={() => link && Linking.openURL(link)}> ({formatTimestamp(it.timestamp)})</Text>
                       )}
+                      <Text accessibilityRole="button" accessibilityLabel={starred(it.text) ? "Remove from Memory" : "Remember this"} style={{ color: starred(it.text) ? t.save : t.muted, fontSize: 18 }} onPress={() => toggleStar(sec.id, i, it.text)}>
+                        {"  "}{starred(it.text) ? "★" : "☆"}
+                      </Text>
                     </Text>
                   );
                 })}
               </View>
             ),
           )}
+          <View style={{ flexDirection: "row", gap: 10, marginTop: 20, alignItems: "center", flexWrap: "wrap" }}>
+            <Text style={{ color: t.muted, flex: 1 }}>{cards.length ? `★ ${cards.length} card${cards.length === 1 ? "" : "s"} in Memory` : "Tap ☆ on a takeaway to remember it."}</Text>
+            <Button title="Remember all" onPress={async () => { try { const r = await api.starTakeaways(g.id, { all: true }); setCards((cs) => [...cs, ...r.cards]); } catch (e) { Alert.alert("Couldn't make cards", (e as Error).message); } }} />
+          </View>
           {sourceLinks(g.source).length > 0 && (
             <View style={{ marginTop: 20 }}>
               <Text style={{ color: t.text, fontSize: 18, fontWeight: "700", marginBottom: 6 }}>Sources</Text>

@@ -21,7 +21,8 @@ import { DEFAULT_SETTINGS, getGist, getSettings, listFolders, listTemplates, new
 import { createSession, deleteSession, hashPassword, userIdForToken, verifyPassword } from "./auth.ts";
 import { IngestError, ingest } from "./ingest/index.ts";
 import { MAX_IMPORT_ITEMS, expandCollection, type Collection } from "./ingest/playlist.ts";
-import { SummarizeError, type Summarizer } from "./summarize.ts";
+import { SummarizeError, createCardWriter, type CardWriter, type Summarizer } from "./summarize.ts";
+import { registerMemoryRoutes, registerPublicMemoryRoutes } from "./memory.ts";
 import { ExportError, sendToTarget } from "./exporters.ts";
 import { renderSharePage } from "./sharePage.ts";
 import { randomBytes } from "node:crypto";
@@ -36,11 +37,13 @@ export interface AppDeps {
   ingestFn?: typeof ingest;
   expandFn?: typeof expandCollection;
   corsOrigins?: string[];
+  /** Writes flashcards from starred takeaways. Defaults to Claude, or the offline writer in demo mode. */
+  cardWriter?: CardWriter;
 }
 
 const SECRET_FIELDS: (keyof UserSettings)[] = ["notionToken"];
 
-export function createApp({ db, summarizer, ingestFn = ingest, expandFn = expandCollection, corsOrigins = [] }: AppDeps) {
+export function createApp({ db, summarizer, ingestFn = ingest, expandFn = expandCollection, corsOrigins = [], cardWriter = createCardWriter(summarizer) }: AppDeps) {
   const app = new Hono<Env>();
   const jobs = new JobQueue(3);
   const rate = new RateLimiter(40, 3600_000);
@@ -535,6 +538,10 @@ export function createApp({ db, summarizer, ingestFn = ingest, expandFn = expand
       assumptions: { readingWpm: 238, noteTakingFactor: 0.35, hourlyRate: settings.hourlyRate, currency: settings.currency, playbackSpeed: settings.playbackSpeed },
     });
   });
+
+  // ---------- memory (spaced repetition) ----------
+  registerPublicMemoryRoutes(app, { db, publicBase });
+  registerMemoryRoutes(app, { db, cardWriter, publicBase, fail });
 
   return app;
 }

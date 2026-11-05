@@ -16,3 +16,12 @@
 - Team spaces and shared folders.
 - Weekly email: what you saved this week, plus the gists you starred.
 - Mobile: offline reading cache, iOS Shortcuts and Android quick-settings tile.
+
+## Memory (spaced repetition) next steps
+- Push reminders when the app is closed: Web Push (VAPID keys) for the PWA and desktop, and Expo local notifications on phones. Today's reminders are the calendar feed and in-app/browser notifications while Gist is open.
+- Email digest of what's due (needs an email provider account, e.g. Postmark or Resend).
+- Per-person FSRS optimization: once someone has a few hundred reviews, re-fit the 21 FSRS-6 parameters to their history (`@open-spaced-repetition/binding`), and suggest a target recall from their workload.
+- Card quality: let the user regenerate one card, choose Q&A vs fill-in-the-blank, and score the default card model against a stronger one on 50 real takeaways; keep whichever gives the best accuracy per dollar (`GIST_CARD_MODEL`).
+- Shared decks: activity feed (who added what), comments on a card, suggested edits from viewers, and a public deck gallery.
+- Typed-answer quizzes and "explain it back" questions graded by the AI.
+- Anki import/export (.apkg) so people can bring decks in and take them out.
