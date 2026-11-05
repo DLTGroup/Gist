@@ -1,5 +1,5 @@
 import type { IngestedSource } from "@gist/core";
-import { youtubeVideoId } from "@gist/core";
+import { youtubeLinks, youtubeVideoId } from "@gist/core";
 import { IngestError, decodeEntities, fetchWithLimits } from "./http.ts";
 
 interface CaptionTrack {
@@ -72,6 +72,7 @@ export async function fetchYouTube(url: string): Promise<IngestedSource> {
     text: segments.map((s) => s.text).join(" "),
     segments,
     language: track.languageCode,
+    links: youtubeLinks(watchUrl),
   };
 }
 

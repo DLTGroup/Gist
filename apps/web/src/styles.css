@@ -173,3 +173,6 @@ label { display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.3
 .wm-i { position: relative; display: inline-block; }
 .wm-dot { position: absolute; left: 50%; top: -0.1em; width: 0.23em; height: 0.23em; margin-left: -0.115em; border-radius: 50%; background: var(--brand-dot); }
 :root { --brand-dot: #fbbf24; }
+.sources { margin: 0.2rem 0 0.8rem; }
+.sources .pill { text-decoration: none; }
+.sources .pill:hover { filter: brightness(0.95); }

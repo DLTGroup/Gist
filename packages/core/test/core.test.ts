@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   BUILT_IN_TEMPLATES, buildUserPrompt, computeSavings, detectSourceKind, formatMinutes, obsidianUri,
-  toEnex, toMarkdown, toNotionBlocks, validateTemplate, youtubeVideoId, type Gist,
+  sourceLinks, timestampLink, toEnex, toMarkdown, toNotionBlocks, validateTemplate, youtubeLinks, youtubeVideoId, type Gist,
 } from "../src/index.ts";
 
 describe("source detection", () => {
@@ -104,3 +104,32 @@ describe("templates and prompt", () => {
     expect(p).toContain('id="actions"');
   });
 });
+
+describe("source links", () => {
+  it("links timestamps to YouTube and to podcast audio", () => {
+    expect(timestampLink("youtube", "https://youtu.be/dQw4w9WgXcQ", 75.4)).toBe("https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=75s");
+    expect(timestampLink("podcast", "https://example.com/ep", 90, "https://cdn.example.com/ep.mp3")).toBe("https://cdn.example.com/ep.mp3#t=90");
+    expect(timestampLink("podcast", "https://example.com/ep", 90)).toBeNull();
+    expect(timestampLink("web", "https://example.com/a", 90)).toBeNull();
+  });
+  it("lists stored links, falling back to the source URL for older gists", () => {
+    const yt = youtubeLinks("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+    expect(yt.map((l) => l.kind)).toEqual(["original", "transcript"]);
+    expect(sourceLinks({ kind: "youtube", url: "x", links: yt })).toBe(yt);
+    expect(sourceLinks({ kind: "web", url: "https://example.com/a" })).toEqual([{ kind: "original", label: "Read the original", url: "https://example.com/a" }]);
+    expect(sourceLinks({ kind: "text", url: null })).toEqual([]);
+  });
+  it("puts transcript links in Markdown exports", () => {
+    const g = { ...sampleGistForLinks(), source: { ...sampleGistForLinks().source, links: [{ kind: "original", label: "Episode page", url: "https://example.com/ep" }, { kind: "transcript", label: "Publisher's transcript", url: "https://example.com/ep.vtt" }] } } as Gist;
+    expect(toMarkdown(g)).toContain("[Publisher's transcript](https://example.com/ep.vtt)");
+  });
+});
+
+function sampleGistForLinks(): Gist {
+  return {
+    id: "g1", userId: "u1", status: "ready", error: null, templateId: "quick-gist", focus: null, folderId: null, tags: [], favourite: false, model: "demo", createdAt: "2026-11-05T00:00:00Z", updatedAt: "2026-11-05T00:00:00Z",
+    source: { kind: "podcast", url: "https://example.com/ep", title: "Ep 1", author: "Show", publishedAt: null, thumbnailUrl: null, durationSeconds: 600, wordCount: 1000 },
+    summary: { title: "T", tldr: "Short.", sections: [{ id: "s", heading: "Key points", format: "bullets", items: [{ text: "A point", timestamp: 30 }] }], quotes: [], suggestedTags: [] },
+    savings: null,
+  } as unknown as Gist;
+}

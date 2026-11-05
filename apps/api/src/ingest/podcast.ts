@@ -1,5 +1,5 @@
 import { XMLParser } from "fast-xml-parser";
-import type { IngestedSource } from "@gist/core";
+import type { IngestedSource, SourceLink } from "@gist/core";
 import { IngestError, decodeEntities, fetchWithLimits } from "./http.ts";
 
 interface Episode {
@@ -25,13 +25,17 @@ const txt = (v: unknown): string | null => (v == null ? null : typeof v === "obj
 export async function fetchPodcast(url: string): Promise<IngestedSource> {
   const ep = await resolveEpisode(url);
   let segments: { start: number; text: string }[] | null = null;
+  let usedTranscript: { url: string; type: string } | null = null;
 
   for (const t of rankTranscripts(ep.transcripts)) {
     try {
       const res = await fetchWithLimits(t.url);
       if (!res.ok) continue;
       segments = parseTranscript(await res.bodyText(), t.type);
-      if (segments.length) break;
+      if (segments.length) {
+        usedTranscript = t;
+        break;
+      }
     } catch {
       /* try the next one */
     }
@@ -51,7 +55,22 @@ export async function fetchPodcast(url: string): Promise<IngestedSource> {
     durationSeconds,
     text: segments.map((s) => s.text).join(" "),
     segments,
+    audioUrl: ep.audioUrl,
+    links: podcastLinks(url, ep, usedTranscript),
   };
+}
+
+/** The episode page, the publisher's transcript (when one exists) and the audio file. */
+export function podcastLinks(input: string, ep: Pick<Episode, "link" | "audioUrl" | "transcripts">, used: { url: string; type: string } | null): SourceLink[] {
+  const links: SourceLink[] = [];
+  const page = ep.link && /^https?:/i.test(ep.link) && ep.link !== ep.audioUrl ? ep.link : input.split("#")[0] !== ep.audioUrl ? input.split("#")[0] : null;
+  if (page) links.push({ kind: "original", label: "Episode page", url: page });
+  const best = used ?? rankTranscripts(ep.transcripts).find((t) => !/json/i.test(t.type)) ?? ep.transcripts[0];
+  if (best) links.push({ kind: "transcript", label: "Publisher's transcript", url: best.url });
+  if (ep.audioUrl) {
+    links.push({ kind: "audio", label: "Listen to the audio", url: ep.audioUrl, note: best ? undefined : "No published transcript. This gist was made from the audio." });
+  }
+  return links;
 }
 
 async function resolveEpisode(url: string): Promise<Episode> {

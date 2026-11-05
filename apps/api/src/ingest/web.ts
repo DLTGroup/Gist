@@ -11,7 +11,8 @@ export async function fetchWebArticle(url: string): Promise<IngestedSource> {
   const type = res.headers.get("content-type") ?? "";
   const raw = await res.bodyText();
   if (type.includes("text/plain")) {
-    return { kind: "web", url: res.url || url, title: new URL(url).pathname.split("/").pop() || url, author: null, publishedAt: null, thumbnailUrl: null, durationSeconds: null, text: raw };
+    const final = res.url || url;
+    return { kind: "web", url: final, title: new URL(url).pathname.split("/").pop() || url, author: null, publishedAt: null, thumbnailUrl: null, durationSeconds: null, text: raw, links: [{ kind: "original", label: "Read the original", url: final }] };
   }
   if (!type.includes("html")) throw new IngestError("That link isn't a web page we can read (try a blog post or article).");
   return parseArticleHtml(raw, res.url || url);
@@ -37,6 +38,7 @@ export function parseArticleHtml(html: string, url: string): IngestedSource {
     durationSeconds: null,
     text,
     language: article?.lang ?? null,
+    links: [{ kind: "original", label: "Read the original", url }],
   };
 }
 
