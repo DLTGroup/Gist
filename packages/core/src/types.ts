@@ -19,6 +19,19 @@ export interface IngestedSource {
   segments?: { start: number; text: string }[];
   /** Language code where known (e.g. "en"). */
   language?: string | null;
+  /** Direct audio file for podcast episodes, used for timestamp links. */
+  audioUrl?: string | null;
+  /** Where the reader can open the original and its transcript. Links only: the text itself is never stored. */
+  links?: SourceLink[];
+}
+
+/** A link from a gist back to its source: the original page, its transcript or its audio. */
+export interface SourceLink {
+  kind: "original" | "transcript" | "audio";
+  label: string;
+  url: string;
+  /** Short help text, e.g. where YouTube keeps the transcript. */
+  note?: string;
 }
 
 export type SectionFormat = "bullets" | "paragraph" | "checklist" | "numbered";

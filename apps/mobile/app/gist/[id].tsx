@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Linking, ScrollView, Share, Text, View } from "react-native";
 import { Stack, router, useLocalSearchParams } from "expo-router";
 import type { Gist } from "@gist/core";
-import { formatMinutes, formatMoney, formatTimestamp, timestampLink, toMarkdown, toPlainText } from "@gist/core";
+import { formatMinutes, formatMoney, formatTimestamp, sourceLinks, timestampLink, toMarkdown, toPlainText } from "@gist/core";
 import { api } from "../../lib/api";
 import { useTheme } from "../../lib/theme";
 import { Button } from "../../lib/ui";
@@ -82,7 +82,7 @@ export default function GistScreen() {
                 <Text style={{ color: t.text, fontSize: 18, fontWeight: "700", marginBottom: 6 }}>{sec.heading}</Text>
                 {sec.paragraph && <Text style={{ color: t.text, lineHeight: 22 }}>{sec.paragraph}</Text>}
                 {sec.items.map((it, i) => {
-                  const link = it.timestamp != null ? timestampLink(g.source.kind, g.source.url, it.timestamp) : null;
+                  const link = it.timestamp != null ? timestampLink(g.source.kind, g.source.url, it.timestamp, g.source.audioUrl) : null;
                   const bullet = sec.format === "numbered" ? `${i + 1}.` : sec.format === "checklist" ? "☐" : "•";
                   return (
                     <Text key={i} style={{ color: t.text, lineHeight: 22, marginBottom: 6 }}>
@@ -95,6 +95,17 @@ export default function GistScreen() {
                 })}
               </View>
             ),
+          )}
+          {sourceLinks(g.source).length > 0 && (
+            <View style={{ marginTop: 20 }}>
+              <Text style={{ color: t.text, fontSize: 18, fontWeight: "700", marginBottom: 6 }}>Sources</Text>
+              {sourceLinks(g.source).map((l) => (
+                <Text key={l.kind + l.url} style={{ color: t.accent, lineHeight: 24 }} onPress={() => Linking.openURL(l.url)}>
+                  {l.kind === "transcript" ? "📄" : l.kind === "audio" ? "🎧" : "↗"} {l.label}
+                  {l.note ? <Text style={{ color: t.muted }}>{"\n"}{l.note}</Text> : null}
+                </Text>
+              ))}
+            </View>
           )}
           <View style={{ flexDirection: "row", gap: 10, marginTop: 24 }}>
             <Button title={g.favourite ? "★ Favourite" : "☆ Favourite"} onPress={async () => setG((await api.updateGist(g.id, { favourite: !g.favourite })).gist)} />

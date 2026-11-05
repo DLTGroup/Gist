@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import type { ExtractionTemplate, Folder, Gist } from "@gist/core";
-import { formatMinutes, formatMoney, formatTimestamp, timestampLink, toPlainText } from "@gist/core";
+import { formatMinutes, formatMoney, formatTimestamp, sourceLinks, timestampLink, toPlainText } from "@gist/core";
 import { api, openExternal } from "../api.ts";
 import { useSession } from "../main.tsx";
 
@@ -49,6 +49,7 @@ export function GistView() {
             {gist.source.author && <> · {gist.source.author}</>}
             {gist.source.durationSeconds ? <> · {formatTimestamp(gist.source.durationSeconds)}</> : gist.source.wordCount ? <> · {gist.source.wordCount.toLocaleString("en-CA")} words</> : null}
           </p>
+          <Sources gist={gist} />
           {gist.status === "ready" && (
             <div className="row">
               <button className="btn-ghost" onClick={() => update({ favourite: !gist.favourite })} aria-pressed={gist.favourite}>
@@ -142,9 +143,30 @@ function icon(g: Gist) {
 }
 
 function Timestamp({ gist, seconds }: { gist: Gist; seconds: number }) {
-  const link = timestampLink(gist.source.kind, gist.source.url, seconds);
+  const link = timestampLink(gist.source.kind, gist.source.url, seconds, gist.source.audioUrl);
   const label = formatTimestamp(seconds);
   return link ? <a className="ts" href={link} target="_blank" rel="noreferrer" title="Jump to this moment">{label}</a> : <span className="ts">{label}</span>;
+}
+
+const LINK_ICON = { original: "↗", transcript: "📄", audio: "🎧" } as const;
+
+/** Links back to the original, its transcript and its audio. Gist stores links only, never the source text. */
+function Sources({ gist }: { gist: Gist }) {
+  const links = sourceLinks(gist.source);
+  if (!links.length) return null;
+  const notes = links.filter((l) => l.note);
+  return (
+    <div className="sources" aria-label="Sources">
+      <div className="row small">
+        {links.map((l) => (
+          <a key={l.kind + l.url} className="pill" href={l.url} target="_blank" rel="noreferrer" title={l.note}>
+            {LINK_ICON[l.kind]} {l.label}
+          </a>
+        ))}
+      </div>
+      {notes.map((l) => <p key={"n" + l.kind} className="muted small" style={{ margin: "0.3rem 0 0" }}>{l.note}</p>)}
+    </div>
+  );
 }
 
 function ExportMenu({ gist }: { gist: Gist }) {

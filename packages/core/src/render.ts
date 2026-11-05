@@ -1,5 +1,5 @@
 import type { Gist, SummarySection } from "./types.ts";
-import { BRAND, formatTimestamp, timestampLink } from "./sources.ts";
+import { BRAND, formatTimestamp, sourceLinks, timestampLink } from "./sources.ts";
 import { formatMinutes, formatMoney } from "./metrics.ts";
 
 /** Renders a gist as Markdown. With frontMatter, the output is ready for Obsidian/Logseq. */
@@ -45,14 +45,16 @@ function bullet(sec: SummarySection, i: number): string {
 }
 
 function tsMarkdown(g: Gist, seconds: number): string {
-  const link = timestampLink(g.source.kind, g.source.url, seconds);
+  const link = timestampLink(g.source.kind, g.source.url, seconds, g.source.audioUrl);
   const label = formatTimestamp(seconds);
   return link ? ` ([${label}](${link}))` : ` (${label})`;
 }
 
 function sourceLine(g: Gist): string {
   const by = g.source.author ? ` by ${g.source.author}` : "";
-  return g.source.url ? `Source: [${g.source.title}](${g.source.url})${by}` : `Source: ${g.source.title}${by}`;
+  const main = g.source.url ? `Source: [${g.source.title}](${g.source.url})${by}` : `Source: ${g.source.title}${by}`;
+  const extra = sourceLinks(g.source).filter((l) => l.kind !== "original").map((l) => `[${l.label}](${l.url})`);
+  return extra.length ? `${main} · ${extra.join(" · ")}` : main;
 }
 
 export function toPlainText(g: Gist): string {
@@ -69,6 +71,7 @@ export function toPlainText(g: Gist): string {
     out.push("");
   }
   out.push(`Source: ${g.source.title}${g.source.url ? " — " + g.source.url : ""}`);
+  for (const l of sourceLinks(g.source).filter((x) => x.kind !== "original")) out.push(`${l.label}: ${l.url}`);
   return out.join("\n");
 }
 

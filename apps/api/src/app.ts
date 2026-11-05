@@ -194,7 +194,7 @@ export function createApp({ db, summarizer, ingestFn = ingest, expandFn = expand
       const src = await ingestFn(input);
       const settings = getSettings(db, g.userId);
       const wordCount = countWords(src.text);
-      const sourceMeta = { kind: src.kind, url: src.url, title: src.title, author: src.author, publishedAt: src.publishedAt, thumbnailUrl: src.thumbnailUrl, durationSeconds: src.durationSeconds, language: src.language ?? null, wordCount };
+      const sourceMeta = { kind: src.kind, url: src.url, title: src.title, author: src.author, publishedAt: src.publishedAt, thumbnailUrl: src.thumbnailUrl, durationSeconds: src.durationSeconds, language: src.language ?? null, audioUrl: src.audioUrl ?? null, links: src.links ?? [], wordCount };
       db.prepare("UPDATE gists SET source_json = ?, updated_at = ? WHERE id = ?").run(JSON.stringify(sourceMeta), now(), g.id);
       const summary = await summarizer.summarize(src, template, g.focus);
       const savings = computeSavings(sourceMeta, summary, { readingWpm: 238, noteTakingFactor: 0.35, hourlyRate: settings.hourlyRate, currency: settings.currency, playbackSpeed: settings.playbackSpeed });

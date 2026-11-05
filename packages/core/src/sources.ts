@@ -1,4 +1,4 @@
-import type { SourceKind } from "./types.ts";
+import type { SourceKind, SourceLink } from "./types.ts";
 
 /** Brand constants in one place, so the name can be switched between "Gist" and "Briefly". */
 export const BRAND = {
@@ -79,14 +79,33 @@ export function formatTimestamp(seconds: number): string {
   return h > 0 ? `${h}:${pad(m)}:${pad(sec)}` : `${m}:${pad(sec)}`;
 }
 
-/** Deep link to a moment in the source, where the platform supports it. */
-export function timestampLink(kind: SourceKind, url: string | null, seconds: number): string | null {
-  if (!url) return null;
-  if (kind === "youtube") {
+/** Deep link to a moment in the source, where the platform supports it (YouTube, or a podcast's audio file). */
+export function timestampLink(kind: SourceKind, url: string | null, seconds: number, audioUrl?: string | null): string | null {
+  if (kind === "youtube" && url) {
     const id = youtubeVideoId(url);
     return id ? `https://www.youtube.com/watch?v=${id}&t=${Math.floor(seconds)}s` : null;
   }
+  if (kind === "podcast" && audioUrl) return `${audioUrl.split("#")[0]}#t=${Math.floor(seconds)}`;
   return null;
+}
+
+/**
+ * Links shown under "Sources" on a gist: the original, its transcript and its audio where available.
+ * Gists made before links were recorded fall back to the source URL.
+ */
+export function sourceLinks(source: { kind: SourceKind; url: string | null; links?: SourceLink[] }): SourceLink[] {
+  if (source.links?.length) return source.links;
+  if (!source.url) return [];
+  const label = source.kind === "youtube" ? "Watch on YouTube" : source.kind === "podcast" ? "Episode page" : "Read the original";
+  return [{ kind: "original", label, url: source.url }];
+}
+
+/** Links for a YouTube video. YouTube has no standalone transcript page, so the transcript link says where to find it. */
+export function youtubeLinks(watchUrl: string): SourceLink[] {
+  return [
+    { kind: "original", label: "Watch on YouTube", url: watchUrl },
+    { kind: "transcript", label: "Transcript on YouTube", url: watchUrl, note: "Under the video, open the description and choose Show transcript." },
+  ];
 }
 
 export type CollectionKind = "youtube-playlist" | "spotify-playlist" | "spotify-show" | "podcast-feed" | "apple-show";
