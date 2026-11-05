@@ -65,6 +65,34 @@ export function detectSourceKind(input: string): SourceKind {
   return "web";
 }
 
+/** The service a source came from, for the platform badge on cards. */
+export type SourcePlatform = "youtube" | "spotify" | "applepodcasts" | "podcast" | "web" | "text";
+
+export const PLATFORM_LABEL: Record<SourcePlatform, string> = {
+  youtube: "YouTube",
+  spotify: "Spotify",
+  applepodcasts: "Apple Podcasts",
+  podcast: "Podcast",
+  web: "Web",
+  text: "Pasted text",
+};
+
+/** Works out the platform from the source's kind and link. Falls back to the kind when the host isn't a known service. */
+export function sourcePlatform(source: { kind: SourceKind; url: string | null }): SourcePlatform {
+  if (source.kind === "text") return "text";
+  if (source.kind === "youtube") return "youtube";
+  let host = "";
+  try {
+    host = source.url ? new URL(source.url).hostname.replace(/^www\./, "") : "";
+  } catch {
+    host = "";
+  }
+  if (host === "open.spotify.com" || host.endsWith(".spotify.com") || host === "spotify.com") return "spotify";
+  if (host === "podcasts.apple.com") return "applepodcasts";
+  if (host === "youtube.com" || host.endsWith(".youtube.com") || host === "youtu.be") return "youtube";
+  return source.kind === "podcast" ? "podcast" : "web";
+}
+
 export function countWords(text: string): number {
   const m = text.trim().match(/\S+/g);
   return m ? m.length : 0;

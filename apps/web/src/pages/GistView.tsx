@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import type { ExtractionTemplate, Folder, Gist } from "@gist/core";
-import { formatMinutes, formatMoney, formatTimestamp, sourceLinks, timestampLink, toPlainText } from "@gist/core";
+import { PLATFORM_LABEL, formatMinutes, formatMoney, formatTimestamp, sourceLinks, sourcePlatform, timestampLink, toPlainText } from "@gist/core";
+import { PlatformIcon } from "../lib/platformIcons.tsx";
 import { api, openExternal } from "../api.ts";
 import { useSession } from "../main.tsx";
 import { ListenBar } from "../components/ListenBar.tsx";
@@ -43,11 +44,11 @@ export function GistView() {
   return (
     <article>
       <div className="gist-head">
-        {gist.source.thumbnailUrl ? <img src={gist.source.thumbnailUrl} alt="" /> : <div className="thumb card" style={{ aspectRatio: "16/9", display: "grid", placeItems: "center", fontSize: "2rem" }}>{icon(gist)}</div>}
+        {gist.source.thumbnailUrl ? <img src={gist.source.thumbnailUrl} alt="" /> : <div className="thumb card" style={{ aspectRatio: "16/9", display: "grid", placeItems: "center" }}><PlatformIcon platform={sourcePlatform(gist.source)} size={44} /></div>}
         <div>
           <h1 data-say="title">{gist.summary?.title ?? gist.source.title}</h1>
           <p className="muted small">
-            {icon(gist)}{" "}
+            <span className="pf-label"><PlatformIcon platform={sourcePlatform(gist.source)} size={16} /> {PLATFORM_LABEL[sourcePlatform(gist.source)]}</span>{" · "}
             {gist.source.url ? <a href={gist.source.url} target="_blank" rel="noreferrer">{gist.source.title}</a> : gist.source.title}
             {gist.source.author && <> · {gist.source.author}</>}
             {gist.source.durationSeconds ? <> · {formatTimestamp(gist.source.durationSeconds)}</> : gist.source.wordCount ? <> · {gist.source.wordCount.toLocaleString("en-CA")} words</> : null}
@@ -147,9 +148,6 @@ export function GistView() {
 
 const confirmDelete = () => window.confirm("Delete this gist?");
 
-function icon(g: Gist) {
-  return { youtube: "▶", podcast: "🎙", web: "📰", text: "📝" }[g.source.kind];
-}
 
 function Timestamp({ gist, seconds }: { gist: Gist; seconds: number }) {
   const link = timestampLink(gist.source.kind, gist.source.url, seconds, gist.source.audioUrl);

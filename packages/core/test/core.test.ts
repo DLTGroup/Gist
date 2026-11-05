@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  sourcePlatform,
   BUILT_IN_TEMPLATES, buildUserPrompt, computeSavings, detectSourceKind, formatMinutes, obsidianUri,
   sourceLinks, timestampLink, toEnex, toMarkdown, toNotionBlocks, validateTemplate, youtubeLinks, youtubeVideoId, type Gist,
 } from "../src/index.ts";
@@ -37,6 +38,17 @@ const gist: Gist = {
   summary, savings: null, folderId: null, tags: ["gardening"], favourite: false, model: "test",
   createdAt: "2026-11-04T12:00:00.000Z", updatedAt: "2026-11-04T12:00:00.000Z",
 };
+
+describe("source platform", () => {
+  it("names the service a source came from", () => {
+    expect(sourcePlatform({ kind: "youtube", url: "https://youtu.be/abc" })).toBe("youtube");
+    expect(sourcePlatform({ kind: "podcast", url: "https://open.spotify.com/episode/123" })).toBe("spotify");
+    expect(sourcePlatform({ kind: "podcast", url: "https://podcasts.apple.com/ca/podcast/x/id1" })).toBe("applepodcasts");
+    expect(sourcePlatform({ kind: "podcast", url: "https://feeds.example.com/show.rss" })).toBe("podcast");
+    expect(sourcePlatform({ kind: "web", url: "https://example.ca/post" })).toBe("web");
+    expect(sourcePlatform({ kind: "text", url: null })).toBe("text");
+  });
+});
 
 describe("savings", () => {
   it("uses duration for video and reading speed for text", () => {
