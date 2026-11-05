@@ -67,6 +67,8 @@ describe("FSRS scheduling (core)", () => {
     expect(c.kind).toBe("cloze");
     expect(c.back).toBe("60");
     expect(c.front).toBe("A hot pile reaches [...] degrees Celsius within three days.");
+    expect(clozeCard("Screens delay melatonin release.Sleep matters.").back).not.toContain(".");
+    expect(clozeCard("Inflation ran at 3.5% in 2024.").back).toBe("3.5%");
   });
 
   it("builds multiple-choice questions with distinct distractors and matches typed answers leniently", () => {

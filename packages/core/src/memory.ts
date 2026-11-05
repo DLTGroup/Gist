@@ -255,7 +255,7 @@ const STOP = new Set(
  */
 export function clozeCard(text: string): { kind: CardKind; front: string; back: string } {
   const clean = text.replace(/\s+/g, " ").trim();
-  const tokens = [...clean.matchAll(/[\p{L}\p{N}][\p{L}\p{N}'’%.,-]*[\p{L}\p{N}%]|[\p{L}\p{N}]/gu)];
+  const tokens = [...clean.matchAll(/[\p{L}\p{N}]+(?:['’-][\p{L}\p{N}]+)*(?:[.,]\d+)*%?/gu)];
   let best: { word: string; index: number; score: number } | null = null;
   for (const m of tokens) {
     const word = m[0];

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import type { ExtractionTemplate, Folder, Gist } from "@gist/core";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import type { ExtractionTemplate, Folder, Gist, MemoryCard } from "@gist/core";
 import { formatMinutes, formatMoney, formatTimestamp, sourceLinks, timestampLink, toPlainText } from "@gist/core";
 import { api, openExternal } from "../api.ts";
 import { useSession } from "../main.tsx";
@@ -14,6 +14,7 @@ export function GistView() {
   const [error, setError] = useState<string | null>(null);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [sharing, setSharing] = useState(false);
+  const mem = useStars(gist);
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
@@ -102,7 +103,8 @@ export function GistView() {
           )}
           <ListenBar gist={gist} />
           {gist.focus && <p className="pill pill-accent">Looking for: {gist.focus}</p>}
-          <p className="tldr" data-say="tldr"><strong>TL;DR</strong> {gist.summary.tldr}</p>
+          <p className="tldr" data-say="tldr"><strong>TL;DR</strong> {gist.summary.tldr}<Star mem={mem} sectionId="tldr" itemIndex={-1} text={gist.summary.tldr} /></p>
+          <MemoryBar gist={gist} mem={mem} />
 
           {gist.summary.sections.map((sec) => {
             if (!sec.paragraph && !sec.items.length) return null;
@@ -110,7 +112,7 @@ export function GistView() {
             return (
               <section className="section" key={sec.id}>
                 <h2 data-say={`h:${sec.id}`}>{sec.heading}</h2>
-                {sec.paragraph && <p data-say={`p:${sec.id}`}>{sec.paragraph}</p>}
+                {sec.paragraph && <p data-say={`p:${sec.id}`}>{sec.paragraph}<Star mem={mem} sectionId={sec.id} itemIndex={-1} text={sec.paragraph} /></p>}
                 {sec.items.length > 0 && (
                   <List>
                     {sec.items.map((it, i) => (
@@ -119,6 +121,7 @@ export function GistView() {
                         <span>
                           {it.text}
                           {it.timestamp != null && <Timestamp gist={gist} seconds={it.timestamp} />}
+                          <Star mem={mem} sectionId={sec.id} itemIndex={i} text={it.text} />
                         </span>
                       </li>
                     ))}
@@ -143,6 +146,96 @@ export function GistView() {
 }
 
 const confirmDelete = () => window.confirm("Delete this gist?");
+
+type Stars = ReturnType<typeof useStars>;
+
+/** Cards made from this gist's takeaways, and starring/unstarring them. */
+function useStars(gist: Gist | null) {
+  const [cards, setCards] = useState<MemoryCard[]>([]);
+  const [busy, setBusy] = useState<Set<string>>(new Set());
+  const [note, setNote] = useState<string | null>(null);
+  const ready = gist?.status === "ready";
+  const gid = gist?.id;
+  useEffect(() => {
+    if (ready && gid) api.gistCards(gid).then((r) => setCards(r.cards), () => {});
+  }, [ready, gid]);
+  const say = (m: string) => {
+    setNote(m);
+    setTimeout(() => setNote(null), 4000);
+  };
+  const isStarred = (text: string) => cards.some((c) => c.source?.text === text);
+  const toggle = async (sectionId: string, itemIndex: number, text: string) => {
+    if (!gid || busy.has(text)) return;
+    setBusy(new Set(busy).add(text));
+    try {
+      const mine = cards.filter((c) => c.source?.text === text);
+      if (mine.length) {
+        await Promise.all(mine.map((c) => api.deleteCard(c.id)));
+        setCards((cs) => cs.filter((c) => c.source?.text !== text));
+        say("Removed from Memory");
+      } else {
+        const r = await api.starTakeaways(gid, { items: [{ sectionId, itemIndex }] });
+        setCards((cs) => [...cs, ...r.cards]);
+        say(r.cards.length ? `Added to Memory: ${r.cards[0].front.slice(0, 70)}${r.cards[0].front.length > 70 ? "…" : ""}` : "Already in Memory");
+      }
+    } catch (e) {
+      say((e as Error).message);
+    } finally {
+      setBusy((b) => {
+        const n = new Set(b);
+        n.delete(text);
+        return n;
+      });
+    }
+  };
+  const starAll = async () => {
+    if (!gid) return;
+    setBusy(new Set(["*"]));
+    try {
+      const r = await api.starTakeaways(gid, { all: true });
+      setCards((cs) => [...cs, ...r.cards]);
+      say(r.cards.length ? `Added ${r.cards.length} card${r.cards.length === 1 ? "" : "s"} to Memory` : "Everything here is already in Memory");
+    } catch (e) {
+      say((e as Error).message);
+    } finally {
+      setBusy(new Set());
+    }
+  };
+  return { cards, busy, note, isStarred, toggle, starAll };
+}
+
+function Star({ mem, sectionId, itemIndex, text }: { mem: Stars; sectionId: string; itemIndex: number; text: string }) {
+  const on = mem.isStarred(text);
+  return (
+    <button
+      className={`star${on ? " on" : ""}`}
+      aria-pressed={on}
+      aria-label={on ? "Remove from Memory" : "Remember this"}
+      title={on ? "In Memory: tap to remove" : "Remember this: Gist will quiz you on it"}
+      disabled={mem.busy.has(text) || mem.busy.has("*")}
+      onClick={() => mem.toggle(sectionId, itemIndex, text)}
+    >
+      {mem.busy.has(text) ? "…" : on ? "★" : "☆"}
+    </button>
+  );
+}
+
+function MemoryBar({ gist, mem }: { gist: Gist; mem: Stars }) {
+  const n = mem.cards.length;
+  return (
+    <div className="memory-bar row small">
+      <span>
+        <strong>★ Memory</strong>{" "}
+        <span className="muted">{n ? `${n} card${n === 1 ? "" : "s"} from this gist` : "Star the takeaways you want to keep, and Gist will quiz you on them."}</span>
+      </span>
+      <span className="spacer" />
+      <button className="btn-ghost small" onClick={mem.starAll} disabled={mem.busy.has("*")}>{mem.busy.has("*") ? "Making cards…" : "Remember all"}</button>
+      {n > 0 && <Link className="btn small" to={`/app/review?gist=${gist.id}`}>Review</Link>}
+      {n > 1 && <Link className="btn small" to={`/app/quiz?gist=${gist.id}`}>Quiz</Link>}
+      {mem.note && <span className="pill pill-accent memory-note" role="status">{mem.note}</span>}
+    </div>
+  );
+}
 
 function icon(g: Gist) {
   return { youtube: "▶", podcast: "🎙", web: "📰", text: "📝" }[g.source.kind];

@@ -1,4 +1,4 @@
-import type { ExportTarget, ExtractionTemplate, Folder, Gist, UserSettings } from "@gist/core";
+import type { Deck, DeckRole, ExportTarget, ExtractionTemplate, Folder, Gist, IntervalPreview, MemoryCard, MemorySettings, QuizQuestion, ReviewRating, UserSettings } from "@gist/core";
 
 declare global {
   interface Window {
@@ -94,6 +94,27 @@ export interface Totals {
   currency: string;
 }
 
+export interface MemorySummary {
+  dueNow: number;
+  newToday: number;
+  totalCards: number;
+  reviewedToday: number;
+  streakDays: number;
+  retention30d: number | null;
+  reviews30d: number;
+  forecast: { date: string; count: number }[];
+  settings: MemorySettings;
+}
+export interface DeckMember {
+  id: string;
+  name: string;
+  role: DeckRole;
+  joinedAt: string;
+  cardsAdded: number;
+  you: boolean;
+}
+export type QueueCard = MemoryCard & { intervals: IntervalPreview };
+
 export const api = {
   health: () => req<{ ok: boolean; model: string; demo: boolean }>("GET", "/api/health"),
   signup: (email: string, password: string, name?: string) => req<{ token: string; user: Me }>("POST", "/api/auth/signup", { email, password, name }),
@@ -134,6 +155,39 @@ export const api = {
   imports: () => req<{ imports: ImportStatus[] }>("GET", "/api/imports"),
   importStatus: (id: string) => req<{ import: ImportStatus }>("GET", `/api/imports/${id}`),
   retryImport: (id: string) => req<{ retried: number }>("POST", `/api/imports/${id}/retry`),
+
+  memorySummary: () => req<MemorySummary>("GET", "/api/memory/summary"),
+  memorySettings: () => req<{ settings: MemorySettings; calendarUrl: string | null }>("GET", "/api/memory/settings"),
+  updateMemorySettings: (patch: Partial<MemorySettings>) => req<{ settings: MemorySettings; calendarUrl: string | null }>("PATCH", "/api/memory/settings", patch),
+  enableCalendar: () => req<{ calendarUrl: string }>("POST", "/api/memory/calendar"),
+  disableCalendar: () => req("DELETE", "/api/memory/calendar"),
+  decks: () => req<{ decks: Deck[] }>("GET", "/api/decks"),
+  createDeck: (name: string, description?: string) => req<{ deck: Deck }>("POST", "/api/decks", { name, description }),
+  deck: (id: string) => req<{ deck: Deck; cards: MemoryCard[]; members: DeckMember[]; shareUrl: string | null }>("GET", `/api/decks/${id}`),
+  updateDeck: (id: string, patch: { name?: string; description?: string | null }) => req<{ deck: Deck }>("PATCH", `/api/decks/${id}`, patch),
+  deleteDeck: (id: string) => req<{ ok: boolean; left: boolean }>("DELETE", `/api/decks/${id}`),
+  shareDeck: (id: string) => req<{ shareUrl: string }>("POST", `/api/decks/${id}/share`),
+  unshareDeck: (id: string) => req("DELETE", `/api/decks/${id}/share`),
+  setMemberRole: (deckId: string, userId: string, role: "editor" | "viewer") => req("PATCH", `/api/decks/${deckId}/members/${userId}`, { role }),
+  removeMember: (deckId: string, userId: string) => req("DELETE", `/api/decks/${deckId}/members/${userId}`),
+  deckInvite: (token: string) => req<{ deck: { id: string; name: string; description: string | null; ownerName: string | null; cardCount: number }; member: boolean }>("GET", `/api/decks/join/${token}`),
+  joinDeck: (token: string) => req<{ deck: Deck }>("POST", `/api/decks/join/${token}`),
+  gistCards: (gistId: string) => req<{ cards: MemoryCard[] }>("GET", `/api/gists/${gistId}/cards`),
+  starTakeaways: (gistId: string, b: { items?: { sectionId: string; itemIndex: number }[]; all?: boolean; deckId?: string }) =>
+    req<{ cards: MemoryCard[]; skipped: number; deckId: string }>("POST", `/api/gists/${gistId}/cards`, b),
+  addCard: (deckId: string, front: string, back: string) => req<{ card: MemoryCard }>("POST", `/api/decks/${deckId}/cards`, { front, back }),
+  updateCard: (id: string, patch: { front?: string; back?: string; suspended?: boolean; deckId?: string; reset?: boolean }) => req<{ card: MemoryCard }>("PATCH", `/api/cards/${id}`, patch),
+  deleteCard: (id: string) => req("DELETE", `/api/cards/${id}`),
+  reviewQueue: (params: { deck?: string; gist?: string } = {}) => {
+    const q = new URLSearchParams(Object.entries(params).filter((e): e is [string, string] => !!e[1]));
+    return req<{ cards: QueueCard[]; dueCount: number; newCount: number }>("GET", `/api/review/queue?${q}`);
+  },
+  review: (cardId: string, rating: ReviewRating, durationMs: number) => req<{ card: MemoryCard }>("POST", `/api/review/${cardId}`, { rating, durationMs }),
+  quiz: (params: { deck?: string; gist?: string; count?: number } = {}) => {
+    const q = new URLSearchParams(Object.entries(params).filter((e) => e[1] != null && e[1] !== "").map(([k, v]) => [k, String(v)]));
+    return req<{ questions: QuizQuestion[] }>("GET", `/api/quiz?${q}`);
+  },
+  answerQuiz: (cardId: string, correct: boolean) => req<{ counted: boolean }>("POST", `/api/quiz/${cardId}`, { correct }),
 
   /** Downloads an export file using the auth header (a plain link can't carry it). */
   async download(path: string) {

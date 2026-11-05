@@ -1,6 +1,6 @@
 import Constants from "expo-constants";
 import * as SecureStore from "expo-secure-store";
-import type { ExportTarget, ExtractionTemplate, Folder, Gist, UserSettings } from "@gist/core";
+import type { ExportTarget, ExtractionTemplate, Folder, Gist, IntervalPreview, MemoryCard, ReviewRating, UserSettings } from "@gist/core";
 
 export const API_URL: string = process.env.EXPO_PUBLIC_API_URL ?? (Constants.expoConfig?.extra?.apiUrl as string) ?? "http://localhost:8787";
 const TOKEN_KEY = "gist.token";
@@ -57,4 +57,10 @@ export const api = {
   getShare: (id: string) => req<{ share: ShareInfo | null }>("GET", `/api/gists/${id}/share`),
   createShare: (id: string, card?: string) => req<{ share: ShareInfo }>("POST", `/api/gists/${id}/share`, { card }),
   deleteShare: (id: string) => req("DELETE", `/api/gists/${id}/share`),
+  memorySummary: () => req<{ dueNow: number; newToday: number; totalCards: number; streakDays: number; retention30d: number | null }>("GET", "/api/memory/summary"),
+  gistCards: (gistId: string) => req<{ cards: MemoryCard[] }>("GET", `/api/gists/${gistId}/cards`),
+  starTakeaways: (gistId: string, b: { items?: { sectionId: string; itemIndex: number }[]; all?: boolean }) => req<{ cards: MemoryCard[] }>("POST", `/api/gists/${gistId}/cards`, b),
+  deleteCard: (id: string) => req("DELETE", `/api/cards/${id}`),
+  reviewQueue: () => req<{ cards: (MemoryCard & { intervals: IntervalPreview })[] }>("GET", "/api/review/queue"),
+  review: (cardId: string, rating: ReviewRating, durationMs: number) => req<{ card: MemoryCard }>("POST", `/api/review/${cardId}`, { rating, durationMs }),
 };

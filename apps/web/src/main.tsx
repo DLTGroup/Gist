@@ -13,6 +13,10 @@ import { Templates } from "./pages/Templates.tsx";
 import { SavingsPage } from "./pages/Savings.tsx";
 import { SettingsPage } from "./pages/Settings.tsx";
 import { ImportView } from "./pages/ImportView.tsx";
+import { MemoryPage } from "./pages/Memory.tsx";
+import { ReviewPage } from "./pages/Review.tsx";
+import { QuizPage } from "./pages/Quiz.tsx";
+import { DeckView, JoinDeck } from "./pages/DeckView.tsx";
 
 interface Session {
   user: Me | null;
@@ -93,6 +97,11 @@ createRoot(document.getElementById("root")!).render(
             <Route path="templates" element={<Templates />} />
             <Route path="savings" element={<SavingsPage />} />
             <Route path="settings" element={<SettingsPage />} />
+            <Route path="memory" element={<MemoryPage />} />
+            <Route path="memory/decks/:id" element={<DeckView />} />
+            <Route path="review" element={<ReviewPage />} />
+            <Route path="quiz" element={<QuizPage />} />
+            <Route path="join/:token" element={<JoinDeck />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

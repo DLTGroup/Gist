@@ -18,6 +18,7 @@ export default function TabsLayout() {
     >
       <Tabs.Screen name="index" options={{ title: "New gist", tabBarIcon: icon("＋") }} />
       <Tabs.Screen name="library" options={{ title: "Library", tabBarIcon: icon("▤") }} />
+      <Tabs.Screen name="review" options={{ title: "Memory", tabBarIcon: icon("★") }} />
       <Tabs.Screen name="savings" options={{ title: "Savings", tabBarIcon: icon("⏱") }} />
       <Tabs.Screen name="settings" options={{ title: "Settings", tabBarIcon: icon("⚙") }} />
     </Tabs>
