@@ -2,9 +2,18 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { ExtractionTemplate, IngestedSource, Summary, SummarySection } from "@gist/core";
 import { SUMMARY_JSON_SCHEMA, SYSTEM_PROMPT, buildUserPrompt } from "@gist/core";
 
+export interface SummaryResult {
+  summary: Summary;
+  /** "provider/model" that actually wrote it, stored on the gist (never shown to users). */
+  model: string;
+  ms: number;
+  usage: { input: number; output: number } | null;
+}
+
 export interface Summarizer {
+  /** Display id for logs, e.g. "anthropic/claude-opus-5-5" or "router(2)". */
   readonly model: string;
-  summarize(src: IngestedSource, template: ExtractionTemplate, focus?: string | null): Promise<Summary>;
+  summarize(src: IngestedSource, template: ExtractionTemplate, focus?: string | null): Promise<SummaryResult>;
 }
 
 export class SummarizeError extends Error {
@@ -15,19 +24,27 @@ export class SummarizeError extends Error {
 
 type Effort = "low" | "medium" | "high" | "xhigh" | "max";
 
-/** Summarizes with Claude using structured output, so every gist has the same exportable shape. */
-export class ClaudeSummarizer implements Summarizer {
-  private client = new Anthropic();
+/** Anthropic provider: structured output, adaptive thinking and server-side refusal fallback. */
+export class AnthropicSummarizer implements Summarizer {
+  private client: Anthropic;
+  readonly model: string;
   constructor(
-    readonly model = process.env.GIST_MODEL || "claude-opus-5-5",
+    modelName: string,
     private effort: Effort = (process.env.GIST_EFFORT as Effort) || "medium",
-  ) {}
+    apiKey?: string,
+  ) {
+    this.model = `anthropic/${modelName}`;
+    this.modelName = modelName;
+    this.client = new Anthropic(apiKey ? { apiKey } : {});
+  }
+  private modelName: string;
 
-  async summarize(src: IngestedSource, template: ExtractionTemplate, focus?: string | null): Promise<Summary> {
+  async summarize(src: IngestedSource, template: ExtractionTemplate, focus?: string | null): Promise<SummaryResult> {
+    const started = Date.now();
     let message;
     try {
       const stream = this.client.beta.messages.stream({
-        model: this.model,
+        model: this.modelName,
         max_tokens: 32000,
         // Server-side fallback: if a safety classifier declines, the API re-runs the request on
         // Anthropic's recommended fallback model instead of returning a refusal.
@@ -55,7 +72,7 @@ export class ClaudeSummarizer implements Summarizer {
     } catch {
       throw new SummarizeError("The summary came back malformed. Please try again.");
     }
-    return normalizeSummary(parsed, template);
+    return { summary: normalizeSummary(parsed, template), model: this.model, ms: Date.now() - started, usage: { input: message.usage.input_tokens, output: message.usage.output_tokens } };
   }
 }
 
@@ -79,14 +96,18 @@ export function normalizeSummary(raw: Summary, template: ExtractionTemplate): Su
 }
 
 /**
- * Demo summarizer used when no Anthropic credentials are configured. It picks representative
- * sentences by word frequency so the full product flow can be tried locally. Output is clearly
- * worse than Claude's and is labelled as a demo in the UI.
+ * Demo summarizer used when no model is configured. It picks representative sentences by word
+ * frequency so the full product flow can be tried locally. Output is clearly worse than a real
+ * model's and is labelled as a demo in the UI.
  */
 export class DemoSummarizer implements Summarizer {
   readonly model = "demo-extractive";
 
-  async summarize(src: IngestedSource, template: ExtractionTemplate, focus?: string | null): Promise<Summary> {
+  async summarize(src: IngestedSource, template: ExtractionTemplate, focus?: string | null): Promise<SummaryResult> {
+    return { summary: this.extract(src, template, focus), model: this.model, ms: 0, usage: null };
+  }
+
+  private extract(src: IngestedSource, template: ExtractionTemplate, focus?: string | null): Summary {
     const sentences = splitSentences(src.segments?.length ? src.segments.map((s) => s.text).join(" ") : src.text);
     const freq = new Map<string, number>();
     const words = (s: string) => s.toLowerCase().match(/[a-zÀ-ɏ']{4,}/g) ?? [];
@@ -137,9 +158,4 @@ const STOP = new Set(
   "that this with have from they will would there their what about which when your just like into than then them been were also more some very could should these those because being here where while doing really going know think people things thing actually right yeah okay well want said says make made much many even only other over such each most both does didn't don't it's i'm you're that's".split(" "),
 );
 
-export function createSummarizer(): Summarizer {
-  const mode = process.env.GIST_SUMMARIZER;
-  if (mode === "demo") return new DemoSummarizer();
-  if (mode === "claude" || process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN) return new ClaudeSummarizer();
-  return new DemoSummarizer();
-}
+

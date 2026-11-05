@@ -92,7 +92,8 @@ export function createApp({ db, summarizer, ingestFn = ingest, expandFn = expand
   });
 
 
-  app.get("/api/health", (c) => c.json({ ok: true, model: summarizer.model, demo: summarizer.model.startsWith("demo") }));
+  // The model in use is an internal detail and is not exposed here.
+  app.get("/api/health", (c) => c.json({ ok: true, demo: summarizer.model.startsWith("demo") }));
 
   app.post("/api/auth/signup", async (c) => {
     const { email, password, name } = await body<{ email?: string; password?: string; name?: string }>(c);
@@ -241,10 +242,10 @@ export function createApp({ db, summarizer, ingestFn = ingest, expandFn = expand
       const wordCount = countWords(src.text);
       const sourceMeta = { kind: src.kind, url: src.url, title: src.title, author: src.author, publishedAt: src.publishedAt, thumbnailUrl: src.thumbnailUrl, durationSeconds: src.durationSeconds, language: src.language ?? null, audioUrl: src.audioUrl ?? null, links: src.links ?? [], wordCount };
       db.prepare("UPDATE gists SET source_json = ?, updated_at = ? WHERE id = ?").run(JSON.stringify(sourceMeta), now(), g.id);
-      const summary = await summarizer.summarize(src, template, g.focus);
+      const { summary, model } = await summarizer.summarize(src, template, g.focus);
       const savings = computeSavings(sourceMeta, summary, { readingWpm: 238, noteTakingFactor: 0.35, hourlyRate: settings.hourlyRate, currency: settings.currency, playbackSpeed: settings.playbackSpeed });
       db.prepare("UPDATE gists SET status = 'ready', error = NULL, summary_json = ?, savings_json = ?, model = ?, updated_at = ? WHERE id = ?").run(
-        JSON.stringify(summary), JSON.stringify(savings), summarizer.model, now(), g.id,
+        JSON.stringify(summary), JSON.stringify(savings), model, now(), g.id,
       );
       const existing = (db.prepare("SELECT tag FROM gist_tags WHERE gist_id = ?").all(g.id) as Row[]).map((r) => r.tag as string);
       setTags(db, g.id, existing.length ? existing : summary.suggestedTags);

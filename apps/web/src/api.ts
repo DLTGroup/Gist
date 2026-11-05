@@ -99,7 +99,7 @@ export interface Totals {
 }
 
 export const api = {
-  health: () => req<{ ok: boolean; model: string; demo: boolean }>("GET", "/api/health"),
+  health: () => req<{ ok: boolean; demo: boolean }>("GET", "/api/health"),
   signup: (email: string, password: string, name?: string) => req<{ token: string; user: Me }>("POST", "/api/auth/signup", { email, password, name }),
   login: (email: string, password: string) => req<{ token: string; user: Me }>("POST", "/api/auth/login", { email, password }),
   logout: () => req("POST", "/api/auth/logout"),
