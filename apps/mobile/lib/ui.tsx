@@ -8,9 +8,9 @@ export function Button({ title, onPress, primary, disabled, style }: { title: st
       accessibilityRole="button"
       onPress={onPress}
       disabled={disabled}
-      style={({ pressed }) => [s.btn, { backgroundColor: primary ? t.accent : t.surface, borderColor: primary ? t.accent : t.border, opacity: disabled ? 0.5 : pressed ? 0.85 : 1 }, style]}
+      style={({ pressed }) => [s.btn, { backgroundColor: primary ? t.cta : t.surface, borderColor: primary ? t.cta : t.border, opacity: disabled ? 0.5 : pressed ? 0.85 : 1 }, style]}
     >
-      <Text style={{ color: primary ? t.accentInk : t.text, fontWeight: "600", fontSize: 16 }}>{title}</Text>
+      <Text style={{ color: primary ? t.ctaInk : t.text, fontWeight: "600", fontSize: 16 }}>{title}</Text>
     </Pressable>
   );
 }

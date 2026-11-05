@@ -12,7 +12,9 @@ export function Landing() {
   const [rate, setRate] = useState(40);
 
   // Same model the app uses: watch/read time plus ~35% for manual notes, minus ~2 minutes to read a gist.
-  const weeklyMin = perWeek * Math.max(0, avgMin * 1.35 - 2);
+  // A week has 168 hours, so time back is counted only up to 112 waking hours (16 a day); past that, Gist adds reach, not time.
+  const watchMin = perWeek * avgMin * 1.35;
+  const weeklyMin = watchMin > 0 ? Math.min(watchMin, 112 * 60) * Math.max(0, 1 - (perWeek * 2) / watchMin) : 0;
   const yearlyHours = (weeklyMin * 48) / 60;
   const yearlyMoney = yearlyHours * rate;
 
@@ -37,7 +39,7 @@ export function Landing() {
       <section className="hero">
         <div>
           <span className="pill pill-accent">YouTube · Podcasts · Articles</span>
-          <h1 style={{ marginTop: "0.8rem" }}>Get the point.<br />Skip the hour.</h1>
+          <h1 style={{ marginTop: "0.8rem" }}>Get to the point.<br />Skip the wait.</h1>
           <p className="lead">
             Paste a link to a video, podcast or blog post. {BRAND.name} pulls out exactly what you asked for, in the format you want, files it, and
             sends it to your notes app. Then it shows you the time and money you just saved.

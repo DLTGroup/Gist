@@ -2,7 +2,7 @@ import { useCallback, useState } from "react";
 import { FlatList, Pressable, Text, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import type { Gist } from "@gist/core";
-import { formatMinutes } from "@gist/core";
+import { PLATFORM_LABEL, formatMinutes, sourcePlatform } from "@gist/core";
 import { api } from "../../lib/api";
 import { useTheme } from "../../lib/theme";
 import { Field } from "../../lib/ui";
@@ -36,6 +36,7 @@ export default function Library() {
           <View style={{ flexDirection: "row", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
             {g.savings && <Text style={{ color: t.save, backgroundColor: t.saveSoft, paddingHorizontal: 8, borderRadius: 8, fontWeight: "600" }}>−{formatMinutes(g.savings.minutesSaved)}</Text>}
             {g.tags.slice(0, 3).map((tag) => <Text key={tag} style={{ color: t.muted }}>#{tag}</Text>)}
+            {g.source.kind !== "text" && <Text style={{ color: t.muted, opacity: 0.7, marginLeft: "auto", fontSize: 12 }}>{PLATFORM_LABEL[sourcePlatform(g.source)]}</Text>}
           </View>
         </Pressable>
       )}

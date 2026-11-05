@@ -34,6 +34,12 @@ export class ApiError extends Error {
   }
 }
 
+export interface ShareInfo {
+  url: string;
+  cardUrl: string | null;
+  createdAt: string;
+}
+
 async function req<T>(method: string, path: string, body?: unknown): Promise<T> {
   const token = tokenStore.get();
   const res = await fetch(API_BASE + path, {
@@ -118,6 +124,9 @@ export const api = {
     req<{ gist: Gist }>("PATCH", `/api/gists/${id}`, patch),
   deleteGist: (id: string) => req("DELETE", `/api/gists/${id}`),
   regenerate: (id: string, templateId?: string, focus?: string) => req<{ gist: Gist }>("POST", `/api/gists/${id}/regenerate`, { templateId, focus }),
+  getShare: (id: string) => req<{ share: ShareInfo | null }>("GET", `/api/gists/${id}/share`),
+  createShare: (id: string, card?: string) => req<{ share: ShareInfo }>("POST", `/api/gists/${id}/share`, { card }),
+  deleteShare: (id: string) => req("DELETE", `/api/gists/${id}/share`),
   send: (id: string, target: ExportTarget) => req<{ url: string | null; openOnClient?: boolean }>("POST", `/api/gists/${id}/send`, { target }),
   savings: () => req<SavingsReport>("GET", "/api/savings"),
   createImport: (b: { url?: string; urls?: string[]; limit?: number; templateId?: string; focus?: string; folderId?: string | null; title?: string }) =>

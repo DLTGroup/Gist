@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import type { Folder, Gist } from "@gist/core";
-import { formatMinutes } from "@gist/core";
+import { formatMinutes, sourcePlatform } from "@gist/core";
+import { PlatformIcon } from "../lib/platformIcons.tsx";
 import { api, type ImportStatus } from "../api.ts";
 
 export function Library() {
@@ -102,7 +103,7 @@ export function Library() {
         <div className="list">
           {gists.map((g) => (
             <Link key={g.id} to={`/app/g/${g.id}`} className="card gist-row">
-              {g.source.thumbnailUrl ? <img src={g.source.thumbnailUrl} alt="" loading="lazy" /> : <div className="thumb">{({ youtube: "▶", podcast: "🎙", web: "📰", text: "📝" } as const)[g.source.kind]}</div>}
+              
               <div>
                 <h3>{g.favourite && "★ "}{g.summary?.title ?? g.source.title}</h3>
                 <p>{g.status === "processing" ? "Working on it…" : g.status === "failed" ? `Couldn't make this gist: ${g.error}` : g.summary?.tldr}</p>
@@ -112,6 +113,7 @@ export function Library() {
                 {g.savings && <span className="pill pill-save">−{formatMinutes(g.savings.minutesSaved)}</span>}
                 <div className="muted small" style={{ marginTop: "0.3rem" }}>{new Date(g.createdAt).toLocaleDateString("en-CA", { month: "short", day: "numeric" })}</div>
               </div>
+              <span className="pf-mark"><PlatformIcon platform={sourcePlatform(g.source)} size={15} /></span>
             </Link>
           ))}
         </div>

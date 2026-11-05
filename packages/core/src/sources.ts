@@ -1,10 +1,10 @@
-import type { SourceKind } from "./types.ts";
+import type { SourceKind, SourceLink } from "./types.ts";
 
 /** Brand constants in one place, so the name can be switched between "Gist" and "Briefly". */
 export const BRAND = {
   name: "Gist",
   altName: "Briefly",
-  tagline: "Get the point. Skip the hour.",
+  tagline: "Get to the point. Skip the wait.",
 } as const;
 
 const YT_HOSTS = new Set(["youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com", "youtu.be", "www.youtube-nocookie.com"]);
@@ -65,6 +65,34 @@ export function detectSourceKind(input: string): SourceKind {
   return "web";
 }
 
+/** The service a source came from, for the platform badge on cards. */
+export type SourcePlatform = "youtube" | "spotify" | "applepodcasts" | "podcast" | "web" | "text";
+
+export const PLATFORM_LABEL: Record<SourcePlatform, string> = {
+  youtube: "YouTube",
+  spotify: "Spotify",
+  applepodcasts: "Apple Podcasts",
+  podcast: "Podcast",
+  web: "Web",
+  text: "Pasted text",
+};
+
+/** Works out the platform from the source's kind and link. Falls back to the kind when the host isn't a known service. */
+export function sourcePlatform(source: { kind: SourceKind; url: string | null }): SourcePlatform {
+  if (source.kind === "text") return "text";
+  if (source.kind === "youtube") return "youtube";
+  let host = "";
+  try {
+    host = source.url ? new URL(source.url).hostname.replace(/^www\./, "") : "";
+  } catch {
+    host = "";
+  }
+  if (host === "open.spotify.com" || host.endsWith(".spotify.com") || host === "spotify.com") return "spotify";
+  if (host === "podcasts.apple.com") return "applepodcasts";
+  if (host === "youtube.com" || host.endsWith(".youtube.com") || host === "youtu.be") return "youtube";
+  return source.kind === "podcast" ? "podcast" : "web";
+}
+
 export function countWords(text: string): number {
   const m = text.trim().match(/\S+/g);
   return m ? m.length : 0;
@@ -79,14 +107,33 @@ export function formatTimestamp(seconds: number): string {
   return h > 0 ? `${h}:${pad(m)}:${pad(sec)}` : `${m}:${pad(sec)}`;
 }
 
-/** Deep link to a moment in the source, where the platform supports it. */
-export function timestampLink(kind: SourceKind, url: string | null, seconds: number): string | null {
-  if (!url) return null;
-  if (kind === "youtube") {
+/** Deep link to a moment in the source, where the platform supports it (YouTube, or a podcast's audio file). */
+export function timestampLink(kind: SourceKind, url: string | null, seconds: number, audioUrl?: string | null): string | null {
+  if (kind === "youtube" && url) {
     const id = youtubeVideoId(url);
     return id ? `https://www.youtube.com/watch?v=${id}&t=${Math.floor(seconds)}s` : null;
   }
+  if (kind === "podcast" && audioUrl) return `${audioUrl.split("#")[0]}#t=${Math.floor(seconds)}`;
   return null;
+}
+
+/**
+ * Links shown under "Sources" on a gist: the original, its transcript and its audio where available.
+ * Gists made before links were recorded fall back to the source URL.
+ */
+export function sourceLinks(source: { kind: SourceKind; url: string | null; links?: SourceLink[] }): SourceLink[] {
+  if (source.links?.length) return source.links;
+  if (!source.url) return [];
+  const label = source.kind === "youtube" ? "Watch on YouTube" : source.kind === "podcast" ? "Episode page" : "Read the original";
+  return [{ kind: "original", label, url: source.url }];
+}
+
+/** Links for a YouTube video. YouTube has no standalone transcript page, so the transcript link says where to find it. */
+export function youtubeLinks(watchUrl: string): SourceLink[] {
+  return [
+    { kind: "original", label: "Watch on YouTube", url: watchUrl },
+    { kind: "transcript", label: "Transcript on YouTube", url: watchUrl, note: "Under the video, open the description and choose Show transcript." },
+  ];
 }
 
 export type CollectionKind = "youtube-playlist" | "spotify-playlist" | "spotify-show" | "podcast-feed" | "apple-show";

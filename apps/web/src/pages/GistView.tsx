@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import type { ExtractionTemplate, Folder, Gist } from "@gist/core";
-import { formatMinutes, formatMoney, formatTimestamp, timestampLink, toPlainText } from "@gist/core";
+import { PLATFORM_LABEL, formatMinutes, formatMoney, formatTimestamp, sourceLinks, sourcePlatform, timestampLink, toPlainText } from "@gist/core";
+import { PlatformIcon } from "../lib/platformIcons.tsx";
 import { api, openExternal } from "../api.ts";
 import { useSession } from "../main.tsx";
+import { ListenBar } from "../components/ListenBar.tsx";
+import { ShareSheet } from "../components/ShareSheet.tsx";
 
 export function GistView() {
   const { id } = useParams();
@@ -11,6 +14,7 @@ export function GistView() {
   const [gist, setGist] = useState<Gist | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [folders, setFolders] = useState<Folder[]>([]);
+  const [sharing, setSharing] = useState(false);
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
@@ -40,15 +44,16 @@ export function GistView() {
   return (
     <article>
       <div className="gist-head">
-        {gist.source.thumbnailUrl ? <img src={gist.source.thumbnailUrl} alt="" /> : <div className="thumb card" style={{ aspectRatio: "16/9", display: "grid", placeItems: "center", fontSize: "2rem" }}>{icon(gist)}</div>}
+        {gist.source.thumbnailUrl ? <img src={gist.source.thumbnailUrl} alt="" /> : <div className="thumb card" style={{ aspectRatio: "16/9", display: "grid", placeItems: "center", color: "var(--muted)" }}><PlatformIcon platform={sourcePlatform(gist.source)} size={40} /></div>}
         <div>
-          <h1>{gist.summary?.title ?? gist.source.title}</h1>
+          <h1 data-say="title">{gist.summary?.title ?? gist.source.title}</h1>
           <p className="muted small">
-            {icon(gist)}{" "}
+            <span className="pf-label"><PlatformIcon platform={sourcePlatform(gist.source)} size={16} /> {PLATFORM_LABEL[sourcePlatform(gist.source)]}</span>{" · "}
             {gist.source.url ? <a href={gist.source.url} target="_blank" rel="noreferrer">{gist.source.title}</a> : gist.source.title}
             {gist.source.author && <> · {gist.source.author}</>}
             {gist.source.durationSeconds ? <> · {formatTimestamp(gist.source.durationSeconds)}</> : gist.source.wordCount ? <> · {gist.source.wordCount.toLocaleString("en-CA")} words</> : null}
           </p>
+          <Sources gist={gist} />
           {gist.status === "ready" && (
             <div className="row">
               <button className="btn-ghost" onClick={() => update({ favourite: !gist.favourite })} aria-pressed={gist.favourite}>
@@ -59,6 +64,10 @@ export function GistView() {
                 {folders.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
               </select>
               <span className="spacer" />
+              <button className="btn-primary share-open" onClick={() => setSharing(true)}>
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4" /></svg>
+                Share
+              </button>
               <ExportMenu gist={gist} />
             </div>
           )}
@@ -95,20 +104,21 @@ export function GistView() {
               <div className="stat"><span className="v">{formatMinutes(gist.savings.gistMinutes)}</span><span className="l">to read this gist</span></div>
             </div>
           )}
+          <ListenBar gist={gist} />
           {gist.focus && <p className="pill pill-accent">Looking for: {gist.focus}</p>}
-          <p className="tldr"><strong>TL;DR</strong> {gist.summary.tldr}</p>
+          <p className="tldr" data-say="tldr"><strong>TL;DR</strong> {gist.summary.tldr}</p>
 
           {gist.summary.sections.map((sec) => {
             if (!sec.paragraph && !sec.items.length) return null;
             const List = sec.format === "numbered" ? "ol" : "ul";
             return (
               <section className="section" key={sec.id}>
-                <h2>{sec.heading}</h2>
-                {sec.paragraph && <p>{sec.paragraph}</p>}
+                <h2 data-say={`h:${sec.id}`}>{sec.heading}</h2>
+                {sec.paragraph && <p data-say={`p:${sec.id}`}>{sec.paragraph}</p>}
                 {sec.items.length > 0 && (
                   <List>
                     {sec.items.map((it, i) => (
-                      <li key={i} className={sec.format === "checklist" ? "check" : undefined}>
+                      <li key={i} data-say={`i:${sec.id}:${i}`} className={sec.format === "checklist" ? "check" : undefined}>
                         {sec.format === "checklist" && <input type="checkbox" aria-label="Done" />}
                         <span>
                           {it.text}
@@ -125,26 +135,45 @@ export function GistView() {
           <TagEditor tags={gist.tags} onChange={(tags) => update({ tags })} />
           <Regenerate gist={gist} onDone={setGist} />
           <p className="muted small" style={{ marginTop: "2rem" }}>
-            Summary written by {gist.model?.startsWith("demo") ? "the demo extractor" : "Claude"} from the {gist.source.kind === "web" ? "article" : "transcript"}. Check important details against the{" "}
+            Summary written by {gist.model?.startsWith("demo") ? "the demo extractor" : "Gist"} from the {gist.source.kind === "web" ? "article" : "transcript"}. Check important details against the{" "}
             {gist.source.url ? <a href={gist.source.url} target="_blank" rel="noreferrer">original</a> : "original"}.
             <button className="btn-ghost btn-danger small" onClick={async () => { if (confirmDelete()) { await api.deleteGist(gist.id); nav("/app/library"); } }}>Delete gist</button>
           </p>
         </>
       )}
+      {sharing && gist.summary && <ShareSheet gist={gist} onClose={() => setSharing(false)} />}
     </article>
   );
 }
 
 const confirmDelete = () => window.confirm("Delete this gist?");
 
-function icon(g: Gist) {
-  return { youtube: "▶", podcast: "🎙", web: "📰", text: "📝" }[g.source.kind];
-}
 
 function Timestamp({ gist, seconds }: { gist: Gist; seconds: number }) {
-  const link = timestampLink(gist.source.kind, gist.source.url, seconds);
+  const link = timestampLink(gist.source.kind, gist.source.url, seconds, gist.source.audioUrl);
   const label = formatTimestamp(seconds);
   return link ? <a className="ts" href={link} target="_blank" rel="noreferrer" title="Jump to this moment">{label}</a> : <span className="ts">{label}</span>;
+}
+
+const LINK_ICON = { original: "↗", transcript: "📄", audio: "🎧" } as const;
+
+/** Links back to the original, its transcript and its audio. Gist stores links only, never the source text. */
+function Sources({ gist }: { gist: Gist }) {
+  const links = sourceLinks(gist.source);
+  if (!links.length) return null;
+  const notes = links.filter((l) => l.note);
+  return (
+    <div className="sources" aria-label="Sources">
+      <div className="row small">
+        {links.map((l) => (
+          <a key={l.kind + l.url} className="pill" href={l.url} target="_blank" rel="noreferrer" title={l.note}>
+            {LINK_ICON[l.kind]} {l.label}
+          </a>
+        ))}
+      </div>
+      {notes.map((l) => <p key={"n" + l.kind} className="muted small" style={{ margin: "0.3rem 0 0" }}>{l.note}</p>)}
+    </div>
+  );
 }
 
 function ExportMenu({ gist }: { gist: Gist }) {
