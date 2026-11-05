@@ -134,7 +134,7 @@ export function GistView() {
           <TagEditor tags={gist.tags} onChange={(tags) => update({ tags })} />
           <Regenerate gist={gist} onDone={setGist} />
           <p className="muted small" style={{ marginTop: "2rem" }}>
-            Summary written by {gist.model?.startsWith("demo") ? "the demo extractor" : "Claude"} from the {gist.source.kind === "web" ? "article" : "transcript"}. Check important details against the{" "}
+            Summary written by {gist.model?.startsWith("demo") ? "the demo extractor" : "Gist"} from the {gist.source.kind === "web" ? "article" : "transcript"}. Check important details against the{" "}
             {gist.source.url ? <a href={gist.source.url} target="_blank" rel="noreferrer">original</a> : "original"}.
             <button className="btn-ghost btn-danger small" onClick={async () => { if (confirmDelete()) { await api.deleteGist(gist.id); nav("/app/library"); } }}>Delete gist</button>
           </p>

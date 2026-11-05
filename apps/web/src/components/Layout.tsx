@@ -49,7 +49,7 @@ export function Layout() {
       <main className="main">
         {demo && (
           <p className="notice">
-            Demo mode: summaries use a simple built-in extractor. Add an Anthropic API key on the server to use Claude.
+            Demo mode: summaries use a simple built-in extractor. Add a model API key on the server for full summaries.
           </p>
         )}
         <Outlet />

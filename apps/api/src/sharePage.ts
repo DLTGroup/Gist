@@ -39,7 +39,7 @@ ${image}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:17px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 main{max-width:720px;margin:0 auto;padding:28px max(18px,env(safe-area-inset-left)) 64px}
 .brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:inherit;font-weight:800;font-size:22px;letter-spacing:-.03em}
-.brand i{width:28px;height:28px;border-radius:7px;background:#166534;position:relative}.brand i::after{content:"";position:absolute;right:4px;top:5px;width:6px;height:6px;border-radius:50%;background:var(--dot)}
+.brand i{width:28px;height:28px;border-radius:7px;background:#166534;position:relative}.brand i::after{content:"";position:absolute;right:5px;bottom:6px;width:6px;height:6px;border-radius:50%;background:var(--dot)}
 .kicker{margin-top:36px;font:600 12px ui-monospace,Menlo,monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--mute)}
 h1{font-size:clamp(30px,6vw,44px);line-height:1.08;letter-spacing:-.03em;margin:10px 0 14px}
 .tldr{font-size:20px}.save{display:inline-block;margin:6px 0 4px;background:var(--asoft);color:var(--amber);font-weight:700;font-size:14px;border-radius:999px;padding:4px 12px}

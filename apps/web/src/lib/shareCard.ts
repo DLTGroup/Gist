@@ -61,7 +61,7 @@ export function drawShareCard(canvas: HTMLCanvasElement, g: Gist, format: CardFo
   x.fillStyle = "#fff";
   for (const [a, b, w] of [[14, 20, 30], [14, 30, 36], [14, 40, 22]]) { rr(P + a, y + b, w, 5, 2.5); x.fill(); }
   x.fillStyle = DOT;
-  x.beginPath(); x.arc(P + 48, y + 20, 5, 0, Math.PI * 2); x.fill();
+  x.beginPath(); x.arc(P + 46, y + 42.5, 5, 0, Math.PI * 2); x.fill();
   x.font = `800 50px ${sans}`;
   x.fillStyle = PAPER;
   x.fillText("Gıst", P + 84, y + 50);
