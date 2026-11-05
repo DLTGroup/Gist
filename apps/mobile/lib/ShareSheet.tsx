@@ -7,7 +7,7 @@ import { formatMinutes, formatMoney, shareLinks, shareMessage, type Gist } from 
 import { api, type ShareInfo } from "./api";
 import { useTheme } from "./theme";
 
-const INK = "#0c1514", PAPER = "#f4f6f5", TEAL = "#2dd4bf", DOT = "#fbbf24", MUTE = "#9fb0ac";
+const INK = "#0d1710", PAPER = "#f3f7f3", TEAL = "#5fd38a", DOT = "#f59e0b", MUTE = "#9fb2a4";
 
 /** The branded card, laid out at 360×360 and captured at 3× (1080×1080) for posts and previews. */
 function Card({ gist }: { gist: Gist }) {
@@ -16,7 +16,7 @@ function Card({ gist }: { gist: Gist }) {
     <View style={{ width: 360, height: 360, backgroundColor: INK, padding: 34, justifyContent: "space-between" }}>
       <View>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <View style={{ width: 22, height: 22, borderRadius: 5, backgroundColor: "#0f766e" }} />
+          <View style={{ width: 22, height: 22, borderRadius: 5, backgroundColor: "#166534" }} />
           <Text style={{ color: PAPER, fontWeight: "800", fontSize: 17 }}>Gist</Text>
           <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: DOT, marginLeft: -24, marginTop: -16 }} />
         </View>
@@ -31,7 +31,7 @@ function Card({ gist }: { gist: Gist }) {
       </View>
       <View>
         {gist.savings && (
-          <Text style={{ alignSelf: "flex-start", color: DOT, backgroundColor: "rgba(251,191,36,.16)", fontWeight: "700", fontSize: 10, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, overflow: "hidden" }}>
+          <Text style={{ alignSelf: "flex-start", color: TEAL, backgroundColor: "rgba(95,211,138,.15)", fontWeight: "700", fontSize: 10, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, overflow: "hidden" }}>
             Saved {formatMinutes(gist.savings.minutesSaved)} · {formatMoney(gist.savings.moneySaved, gist.savings.currency)} of time
           </Text>
         )}

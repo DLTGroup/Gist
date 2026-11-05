@@ -33,7 +33,7 @@ export function drawShareCard(canvas: HTMLCanvasElement, g: Gist, format: CardFo
   canvas.width = W;
   canvas.height = H;
   const x = canvas.getContext("2d")!;
-  const INK = "#0c1514", PAPER = "#f4f6f5", TEAL = "#2dd4bf", DOT = "#fbbf24", MUTE = "#9fb0ac";
+  const INK = "#0d1710", PAPER = "#f3f7f3", TEAL = "#5fd38a", DOT = "#f59e0b", MUTE = "#9fb2a4";
   const sans = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
   const mono = 'ui-monospace, "SF Mono", Menlo, Consolas, monospace';
   x.fillStyle = INK;
@@ -56,7 +56,7 @@ export function drawShareCard(canvas: HTMLCanvasElement, g: Gist, format: CardFo
   const P = 110;
   let y = story ? 190 : 120;
   rr(P, y, 64, 64, 15);
-  x.fillStyle = "#0f766e";
+  x.fillStyle = "#166534";
   x.fill();
   x.fillStyle = "#fff";
   for (const [a, b, w] of [[14, 20, 30], [14, 30, 36], [14, 40, 22]]) { rr(P + a, y + b, w, 5, 2.5); x.fill(); }
@@ -110,9 +110,9 @@ export function drawShareCard(canvas: HTMLCanvasElement, g: Gist, format: CardFo
     x.font = `700 30px ${sans}`;
     const sw = x.measureText(sv).width + 64;
     rr(P, by - 50, sw, 68, 34);
-    x.fillStyle = "rgba(251,191,36,.16)";
+    x.fillStyle = "rgba(95,211,138,.15)";
     x.fill();
-    x.fillStyle = DOT;
+    x.fillStyle = TEAL;
     x.fillText(sv, P + 32, by - 5);
   }
   x.font = `500 24px ${mono}`;

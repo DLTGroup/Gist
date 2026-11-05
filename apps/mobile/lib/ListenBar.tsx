@@ -42,7 +42,7 @@ export function ListenBar({ gist, onSegment }: { gist: Gist; onSegment?: (key: s
       <View style={{ flex: 1, gap: 6 }}>
         <Text style={{ color: t.text, fontWeight: "600" }} numberOfLines={1}>{playing ? "Listening…" : i > 0 ? "Paused" : "Listen to this gist"}</Text>
         <View style={{ flexDirection: "row", gap: 2, height: 5 }}>
-          {segs.map((s, k) => <View key={s.key} style={{ flex: 1, borderRadius: 2, backgroundColor: k < i ? t.accent : k === i && playing ? "#fbbf24" : t.border }} />)}
+          {segs.map((s, k) => <View key={s.key} style={{ flex: 1, borderRadius: 2, backgroundColor: k < i ? t.accent : k === i && playing ? t.save : t.border }} />)}
         </View>
         <Text style={{ color: t.muted, fontSize: 12 }}>{Math.max(1, Math.round(left))} min left</Text>
       </View>

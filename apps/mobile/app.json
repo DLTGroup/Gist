@@ -10,7 +10,7 @@
     "ios": { "bundleIdentifier": "app.gist.mobile", "supportsTablet": true },
     "android": {
       "package": "app.gist.mobile",
-      "adaptiveIcon": { "foregroundImage": "./assets/icon.png", "backgroundColor": "#0f766e" }
+      "adaptiveIcon": { "foregroundImage": "./assets/icon.png", "backgroundColor": "#166534" }
     },
     "plugins": [
       "expo-router",

@@ -77,7 +77,7 @@ export default function GistScreen() {
             </View>
           )}
           <ListenBar gist={g} onSegment={setSpeaking} />
-          <Text style={{ color: t.text, fontSize: 16, marginTop: 16, backgroundColor: speaking === "tldr" ? "rgba(251,191,36,.22)" : undefined, borderLeftWidth: 4, borderLeftColor: t.accent, paddingLeft: 10 }}>
+          <Text style={{ color: t.text, fontSize: 16, marginTop: 16, backgroundColor: speaking === "tldr" ? t.saveSoft : undefined, borderLeftWidth: 4, borderLeftColor: t.accent, paddingLeft: 10 }}>
             <Text style={{ fontWeight: "800" }}>TL;DR </Text>
             {g.summary.tldr}
           </Text>
@@ -90,7 +90,7 @@ export default function GistScreen() {
                   const link = it.timestamp != null ? timestampLink(g.source.kind, g.source.url, it.timestamp, g.source.audioUrl) : null;
                   const bullet = sec.format === "numbered" ? `${i + 1}.` : sec.format === "checklist" ? "☐" : "•";
                   return (
-                    <Text key={i} style={{ color: t.text, lineHeight: 22, marginBottom: 6, backgroundColor: speaking === `i:${sec.id}:${i}` ? "rgba(251,191,36,.22)" : undefined }}>
+                    <Text key={i} style={{ color: t.text, lineHeight: 22, marginBottom: 6, backgroundColor: speaking === `i:${sec.id}:${i}` ? t.saveSoft : undefined }}>
                       {bullet} {it.text}
                       {it.timestamp != null && (
                         <Text style={{ color: link ? t.accent : t.muted }} onPress={() => link && Linking.openURL(link)}> ({formatTimestamp(it.timestamp)})</Text>

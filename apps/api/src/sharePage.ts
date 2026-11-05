@@ -34,12 +34,12 @@ export function renderSharePage(g: Gist, opts: { url: string; cardUrl: string | 
 ${image}
 <link rel="canonical" href="${esc(opts.url)}">
 <style>
-:root{--bg:#f4f6f5;--fg:#0c1514;--mute:#4a5653;--line:rgba(12,21,20,.12);--teal:#0f766e;--tsoft:#dff0ec;--amber:#9a5800;--asoft:#fcefd2;--dot:#fbbf24}
-@media (prefers-color-scheme:dark){:root{--bg:#090f0e;--fg:#e7eeec;--mute:#a3b0ad;--line:rgba(231,238,236,.14);--teal:#2dd4bf;--tsoft:#0f2e2a;--amber:#fbbf24;--asoft:#2b2209;color-scheme:dark}}
+:root{--bg:#f6f8f5;--fg:#102016;--mute:#465449;--line:rgba(16,32,22,.12);--teal:#166534;--tsoft:#e2ede4;--amber:#166534;--asoft:#e2ede4;--dot:#f59e0b;--cta:#b45309;--cta-ink:#fff}
+@media (prefers-color-scheme:dark){:root{--bg:#09110c;--fg:#e6efe8;--mute:#a7b5ab;--line:rgba(230,239,232,.14);--teal:#5fd38a;--tsoft:#12301d;--amber:#5fd38a;--asoft:#12301d;--cta:#f59e0b;--cta-ink:#1c1000;color-scheme:dark}}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:17px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 main{max-width:720px;margin:0 auto;padding:28px max(18px,env(safe-area-inset-left)) 64px}
 .brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:inherit;font-weight:800;font-size:22px;letter-spacing:-.03em}
-.brand i{width:28px;height:28px;border-radius:7px;background:#0f766e;position:relative}.brand i::after{content:"";position:absolute;right:4px;top:5px;width:6px;height:6px;border-radius:50%;background:var(--dot)}
+.brand i{width:28px;height:28px;border-radius:7px;background:#166534;position:relative}.brand i::after{content:"";position:absolute;right:4px;top:5px;width:6px;height:6px;border-radius:50%;background:var(--dot)}
 .kicker{margin-top:36px;font:600 12px ui-monospace,Menlo,monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--mute)}
 h1{font-size:clamp(30px,6vw,44px);line-height:1.08;letter-spacing:-.03em;margin:10px 0 14px}
 .tldr{font-size:20px}.save{display:inline-block;margin:6px 0 4px;background:var(--asoft);color:var(--amber);font-weight:700;font-size:14px;border-radius:999px;padding:4px 12px}
@@ -47,7 +47,7 @@ h2{font:600 12px ui-monospace,Menlo,monospace;letter-spacing:.1em;text-transform
 li{margin:6px 0}.ts{font:600 12px ui-monospace,Menlo,monospace;color:var(--teal);background:var(--tsoft);border-radius:5px;padding:1px 6px;text-decoration:none}
 .sources{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 0}.src{font-size:14px;font-weight:600;color:inherit;text-decoration:none;border:1px solid var(--line);border-radius:999px;padding:6px 12px}
 .foot{margin-top:40px;padding-top:20px;border-top:1px solid var(--line);color:var(--mute);font-size:14px;display:grid;gap:14px}
-.cta{justify-self:start;background:var(--fg);color:var(--bg);text-decoration:none;font-weight:600;border-radius:999px;padding:12px 20px}
+.cta{justify-self:start;background:var(--cta);color:var(--cta-ink);text-decoration:none;font-weight:600;border-radius:999px;padding:12px 20px}
 </style></head><body><main>
 <a class="brand" href="${esc(opts.appUrl)}"><i></i>${BRAND.name}</a>
 <div class="kicker">${esc({ youtube: "Video", podcast: "Podcast", web: "Article", text: "Notes" }[g.source.kind])} summary</div>
