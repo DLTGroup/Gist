@@ -73,10 +73,14 @@ describe("rendering", () => {
     expect(x).toContain("<en-export");
     expect(x).toContain('<en-todo checked="false"/>Buy a soil test kit.');
     expect(x).toContain("<tag>gardening</tag>");
+    expect(x).toContain('Map the sun across the day. (<a href="https://www.youtube.com/watch?v=dQw4w9WgXcQ&amp;t=65s">1:05</a>)');
   });
   it("renders Notion blocks", () => {
     const blocks = toNotionBlocks(gist) as { type: string }[];
     expect(blocks.map((b) => b.type)).toEqual(["callout", "heading_2", "bulleted_list_item", "heading_2", "to_do", "divider", "paragraph"]);
+    const rich = (blocks[2] as unknown as { bulleted_list_item: { rich_text: { text: { content: string; link: { url: string } | null } }[] } }).bulleted_list_item.rich_text;
+    expect(rich.map((r) => r.text.content).join("")).toBe("Map the sun across the day. (1:05)");
+    expect(rich[2].text.link).toEqual({ url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=65s" });
   });
   it("builds an Obsidian deep link", () => {
     const uri = obsidianUri(gist, "My Vault", "Gist");

@@ -50,6 +50,14 @@ function tsMarkdown(g: Gist, seconds: number): string {
   return link ? ` ([${label}](${link}))` : ` (${label})`;
 }
 
+/** A timestamp for HTML exports, linked to that moment in the source where the platform allows it. */
+function tsHtml(g: Gist, seconds: number | null | undefined): string {
+  if (seconds == null) return "";
+  const link = timestampLink(g.source.kind, g.source.url, seconds, g.source.audioUrl);
+  const label = formatTimestamp(seconds);
+  return link ? ` (<a href="${esc(link)}">${label}</a>)` : ` (${label})`;
+}
+
 function sourceLine(g: Gist): string {
   const by = g.source.author ? ` by ${g.source.author}` : "";
   const main = g.source.url ? `Source: [${g.source.title}](${g.source.url})${by}` : `Source: ${g.source.title}${by}`;
@@ -91,10 +99,10 @@ export function toEnex(gists: Gist[]): string {
         if (sec.paragraph) body.push(`<div>${esc(sec.paragraph)}</div>`);
         if (sec.items.length) {
           if (sec.format === "checklist") {
-            body.push(...sec.items.map((it) => `<div><en-todo checked="false"/>${esc(it.text)}</div>`));
+            body.push(...sec.items.map((it) => `<div><en-todo checked="false"/>${esc(it.text)}${tsHtml(g, it.timestamp)}</div>`));
           } else {
             const tag = sec.format === "numbered" ? "ol" : "ul";
-            body.push(`<${tag}>${sec.items.map((it) => `<li>${esc(it.text)}${it.timestamp != null ? ` (${formatTimestamp(it.timestamp)})` : ""}</li>`).join("")}</${tag}>`);
+            body.push(`<${tag}>${sec.items.map((it) => `<li>${esc(it.text)}${tsHtml(g, it.timestamp)}</li>`).join("")}</${tag}>`);
           }
         }
       }
@@ -117,9 +125,13 @@ export function toNotionBlocks(g: Gist): unknown[] {
     blocks.push({ object: "block", type: "heading_2", heading_2: { rich_text: rt(sec.heading) } });
     if (sec.paragraph) blocks.push({ object: "block", type: "paragraph", paragraph: { rich_text: rt(sec.paragraph) } });
     for (const it of sec.items) {
-      const text = it.text + (it.timestamp != null ? ` (${formatTimestamp(it.timestamp)})` : "");
       const type = sec.format === "checklist" ? "to_do" : sec.format === "numbered" ? "numbered_list_item" : "bulleted_list_item";
-      const payload: Record<string, unknown> = { rich_text: rt(text) };
+      const rich = rt(it.text);
+      if (it.timestamp != null) {
+        const link = timestampLink(g.source.kind, g.source.url, it.timestamp, g.source.audioUrl);
+        rich.push(...rt(" ("), ...rt(formatTimestamp(it.timestamp), link), ...rt(")"));
+      }
+      const payload: Record<string, unknown> = { rich_text: rich };
       if (type === "to_do") payload.checked = false;
       blocks.push({ object: "block", type, [type]: payload });
     }

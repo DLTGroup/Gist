@@ -12,7 +12,9 @@ export function Landing() {
   const [rate, setRate] = useState(40);
 
   // Same model the app uses: watch/read time plus ~35% for manual notes, minus ~2 minutes to read a gist.
-  const weeklyMin = perWeek * Math.max(0, avgMin * 1.35 - 2);
+  // A week has 168 hours, so time back is counted only up to 112 waking hours (16 a day); past that, Gist adds reach, not time.
+  const watchMin = perWeek * avgMin * 1.35;
+  const weeklyMin = watchMin > 0 ? Math.min(watchMin, 112 * 60) * Math.max(0, 1 - (perWeek * 2) / watchMin) : 0;
   const yearlyHours = (weeklyMin * 48) / 60;
   const yearlyMoney = yearlyHours * rate;
 
