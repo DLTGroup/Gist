@@ -7,6 +7,10 @@ declare global {
   }
 }
 
+export type AccountProvider = "youtube" | "spotify";
+export interface ConnectionInfo { provider: AccountProvider; available: boolean; connected: boolean; accountName: string | null; note: string | null }
+export interface SavedList { id: string; title: string; count: number | null; kind: "likes" | "playlist" | "saved-episodes" }
+
 const API_BASE: string = window.gistDesktop?.apiBase ?? import.meta.env.VITE_API_URL ?? "";
 const TOKEN_KEY = "gist.token";
 
@@ -129,7 +133,11 @@ export const api = {
   deleteShare: (id: string) => req("DELETE", `/api/gists/${id}/share`),
   send: (id: string, target: ExportTarget) => req<{ url: string | null; openOnClient?: boolean }>("POST", `/api/gists/${id}/send`, { target }),
   savings: () => req<SavingsReport>("GET", "/api/savings"),
-  createImport: (b: { url?: string; urls?: string[]; limit?: number; templateId?: string; focus?: string; folderId?: string | null; title?: string }) =>
+  connections: () => req<{ connections: ConnectionInfo[] }>("GET", "/api/connections"),
+  startConnection: (p: AccountProvider) => req<{ url: string }>("POST", `/api/connections/${p}/start`),
+  disconnect: (p: AccountProvider) => req("DELETE", `/api/connections/${p}`),
+  savedLists: (p: AccountProvider) => req<{ lists: SavedList[] }>("GET", `/api/connections/${p}/lists`),
+  createImport: (b: { url?: string; urls?: string[]; connection?: { provider: AccountProvider; listId: string; title?: string }; limit?: number; templateId?: string; focus?: string; folderId?: string | null; title?: string }) =>
     req<{ import: ImportStatus }>("POST", "/api/imports", b),
   imports: () => req<{ imports: ImportStatus[] }>("GET", "/api/imports"),
   importStatus: (id: string) => req<{ import: ImportStatus }>("GET", `/api/imports/${id}`),

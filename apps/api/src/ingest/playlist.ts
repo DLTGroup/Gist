@@ -9,7 +9,8 @@ export interface CollectionItem {
 }
 
 export interface Collection {
-  kind: CollectionKind;
+  /** Link-based collections, a pasted list of links, or a list read from a connected account. */
+  kind: CollectionKind | "links" | "youtube-account" | "spotify-account";
   title: string;
   items: CollectionItem[];
   /** Items left out, with the reason (e.g. music tracks in a Spotify playlist). */

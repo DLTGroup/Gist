@@ -101,4 +101,6 @@ const KIND: Record<string, string> = {
   "apple-show": "🎙 Apple Podcasts show",
   "podcast-feed": "🎙 Podcast feed",
   links: "🔗 Link list",
+  "youtube-account": "▶ From your YouTube",
+  "spotify-account": "🎧 From your Spotify",
 };

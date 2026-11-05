@@ -222,3 +222,14 @@ label { display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.3
 @media (prefers-color-scheme: dark) { :root { --brand-x: #2b3331; } }
 @media (max-width: 520px) { .nets { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 0.9rem; } }
 @media (max-width: 720px) { .sheet { grid-template-columns: 1fr; padding: 1rem; } .sheet-preview canvas { max-height: 46vh; object-fit: contain; } }
+
+/* Connected accounts */
+.conn-row { gap: 0.8rem; align-items: center; flex-wrap: nowrap; }
+.conn-mark { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: var(--surface-2); color: var(--muted); flex: none; }
+.saved-lists { display: flex; flex-direction: column; gap: 0.35rem; max-height: 260px; overflow: auto; }
+.saved-list { display: flex; align-items: center; gap: 0.6rem; text-align: left; width: 100%; padding: 0.55rem 0.7rem; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: inherit; cursor: pointer; }
+.saved-list:hover { border-color: var(--accent); }
+.saved-list[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.saved-list .count { margin-left: auto; color: var(--muted); font-size: 0.85rem; }
+.acct-tabs { display: flex; gap: 0.4rem; margin-bottom: 0.5rem; }
+.acct-tabs button { display: inline-flex; align-items: center; gap: 0.35rem; }

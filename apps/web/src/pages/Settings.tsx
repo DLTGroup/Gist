@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { ExportTarget, ExtractionTemplate, UserSettings } from "@gist/core";
 import { api } from "../api.ts";
 import { useSession } from "../main.tsx";
+import { ConnectedAccounts } from "../components/ConnectedAccounts.tsx";
 
 export function SettingsPage() {
   const { user, setUser, signOut } = useSession();
@@ -31,6 +32,8 @@ export function SettingsPage() {
   return (
     <form className="stack" onSubmit={save}>
       <h1>Settings</h1>
+
+      <ConnectedAccounts />
 
       <div className="card">
         <h2>Savings</h2>
