@@ -23,6 +23,11 @@ export interface IngestedSource {
   audioUrl?: string | null;
   /** Where the reader can open the original and its transcript. Links only: the text itself is never stored. */
   links?: SourceLink[];
+  /**
+   * Set when the model should watch the video itself rather than read a transcript (no captions,
+   * captions blocked, or video-first mode). `text` may then be empty.
+   */
+  video?: { url: string };
 }
 
 /** A link from a gist back to its source: the original page, its transcript or its audio. */

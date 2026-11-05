@@ -23,6 +23,24 @@ const ANDROID_VERSION = "20.10.38";
  * turn on in the player. If YouTube changes its internals this is the module to update; a
  * licensed transcript provider can be swapped in behind fetchYouTube() without touching callers.
  */
+/** Thrown when a video can be identified but has no usable captions; carries what we know about it. */
+export class NoTranscriptError extends IngestError {
+  constructor(message: string, public meta: IngestedSource) {
+    super(message);
+  }
+}
+
+/** Title, channel and thumbnail from YouTube's public oEmbed endpoint, for when the watch page can't be read. */
+export async function youtubeOEmbed(watchUrl: string): Promise<{ title: string | null; author: string | null; thumbnailUrl: string | null }> {
+  try {
+    const r = await fetchWithLimits(`https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(watchUrl)}`, { timeoutMs: 8000 });
+    const j = JSON.parse(await r.bodyText()) as { title?: string; author_name?: string; thumbnail_url?: string };
+    return { title: j.title ?? null, author: j.author_name ?? null, thumbnailUrl: j.thumbnail_url ?? null };
+  } catch {
+    return { title: null, author: null, thumbnailUrl: null };
+  }
+}
+
 export async function fetchYouTube(url: string): Promise<IngestedSource> {
   const id = youtubeVideoId(url);
   if (!id) throw new IngestError("That isn't a YouTube video link.");
@@ -52,27 +70,32 @@ export async function fetchYouTube(url: string): Promise<IngestedSource> {
   }
 
   const details = player.videoDetails ?? embedded?.videoDetails ?? {};
-  const tracks = player.captions?.playerCaptionsTracklistRenderer?.captionTracks ?? [];
-  if (!tracks.length) {
-    throw new IngestError("This video has no captions, so there's nothing to summarize yet. Try another video, or paste the text instead.");
-  }
-  const track = pickTrack(tracks);
-  const segments = await fetchCaptionSegments(track.baseUrl);
-  if (!segments.length) throw new IngestError("The captions for this video came back empty.");
-
   const thumbs = details.thumbnail?.thumbnails ?? [];
-  return {
+  const meta: IngestedSource = {
     kind: "youtube",
     url: watchUrl,
     title: details.title ?? "YouTube video",
     author: details.author ?? null,
     publishedAt: (player.microformat ?? embedded?.microformat)?.playerMicroformatRenderer?.publishDate ?? null,
     thumbnailUrl: thumbs.length ? thumbs[thumbs.length - 1].url : `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
-    durationSeconds: details.lengthSeconds ? Number(details.lengthSeconds) : Math.ceil(segments[segments.length - 1].start + 5),
+    durationSeconds: details.lengthSeconds ? Number(details.lengthSeconds) : null,
+    text: "",
+    links: youtubeLinks(watchUrl),
+  };
+  const tracks = player.captions?.playerCaptionsTracklistRenderer?.captionTracks ?? [];
+  if (!tracks.length) {
+    throw new NoTranscriptError("This video has no captions, so there's nothing to summarize yet. Try another video, or paste the text instead.", meta);
+  }
+  const track = pickTrack(tracks);
+  const segments = await fetchCaptionSegments(track.baseUrl);
+  if (!segments.length) throw new NoTranscriptError("The captions for this video came back empty.", meta);
+
+  return {
+    ...meta,
+    durationSeconds: meta.durationSeconds ?? Math.ceil(segments[segments.length - 1].start + 5),
     text: segments.map((s) => s.text).join(" "),
     segments,
     language: track.languageCode,
-    links: youtubeLinks(watchUrl),
   };
 }
 

@@ -8,6 +8,8 @@ export interface SummaryResult {
   model: string;
   ms: number;
   usage: { input: number; output: number } | null;
+  /** Set by video models when the source's length wasn't known beforehand. */
+  estimatedDurationSeconds?: number | null;
 }
 
 export interface Summarizer {
