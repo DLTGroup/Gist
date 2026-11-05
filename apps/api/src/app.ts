@@ -24,6 +24,7 @@ import { MAX_IMPORT_ITEMS, expandCollection, type Collection } from "./ingest/pl
 import { SummarizeError, type Summarizer } from "./summarize.ts";
 import { ExportError, sendToTarget } from "./exporters.ts";
 import { renderSharePage } from "./sharePage.ts";
+import { ConnectionError, Connections, PROVIDERS, type Provider } from "./connections.ts";
 import { randomBytes } from "node:crypto";
 
 type Env = { Variables: { userId: string } };
@@ -32,6 +33,8 @@ type Row = Record<string, unknown>;
 export interface AppDeps {
   db: DB;
   summarizer: Summarizer;
+  /** Override the connected-accounts service in tests. */
+  connections?: Connections;
   /** Override ingestion in tests. */
   ingestFn?: typeof ingest;
   expandFn?: typeof expandCollection;
@@ -40,7 +43,7 @@ export interface AppDeps {
 
 const SECRET_FIELDS: (keyof UserSettings)[] = ["notionToken"];
 
-export function createApp({ db, summarizer, ingestFn = ingest, expandFn = expandCollection, corsOrigins = [] }: AppDeps) {
+export function createApp({ db, summarizer, ingestFn = ingest, expandFn = expandCollection, corsOrigins = [], connections = new Connections(db) }: AppDeps) {
   const app = new Hono<Env>();
   const jobs = new JobQueue(3);
   const rate = new RateLimiter(40, 3600_000);
@@ -58,7 +61,7 @@ export function createApp({ db, summarizer, ingestFn = ingest, expandFn = expand
 
   app.onError((err, c) => {
     if (err instanceof HTTPException) return c.json({ error: err.message }, err.status);
-    if (err instanceof IngestError || err instanceof SummarizeError || err instanceof ExportError) return c.json({ error: err.message }, err.status as 400);
+    if (err instanceof IngestError || err instanceof SummarizeError || err instanceof ExportError || err instanceof ConnectionError) return c.json({ error: err.message }, err.status as 400);
     console.error(err);
     return c.json({ error: "Something went wrong on our side." }, 500);
   });
@@ -108,6 +111,26 @@ export function createApp({ db, summarizer, ingestFn = ingest, expandFn = expand
     const r = db.prepare("SELECT id, password_hash FROM users WHERE email = ?").get(email ?? "") as Row | undefined;
     if (!r || !(await verifyPassword(password ?? "", r.password_hash as string))) fail(401, "Email or password is incorrect.");
     return c.json({ token: createSession(db, r!.id as string), user: publicUser(r!.id as string) });
+  });
+
+  // ---------- connected accounts: provider redirect (public; the one-time state identifies the user) ----------
+  const provider = (c: Context): Provider => {
+    const p = c.req.param("provider") as Provider;
+    if (!PROVIDERS.includes(p)) fail(404, "Unknown account type.");
+    return p;
+  };
+  const callbackUrl = (c: Context, p: Provider) => `${publicBase(c)}/api/connections/${p}/callback`;
+  app.get("/api/connections/:provider/callback", async (c) => {
+    const p = provider(c);
+    const back = (q: string) => c.redirect(`${publicBase(c)}/app/settings?${q}#connections`);
+    const { code, state, error } = c.req.query();
+    if (error || !code || !state) return back(`connect_error=${encodeURIComponent(error === "access_denied" ? "You cancelled the sign-in." : "The sign-in didn't complete.")}`);
+    try {
+      await connections.finish(p, state, code, callbackUrl(c, p));
+      return back(`connected=${p}`);
+    } catch (e) {
+      return back(`connect_error=${encodeURIComponent(e instanceof ConnectionError ? e.message : "The sign-in didn't complete.")}`);
+    }
   });
 
   // ---------- authenticated ----------
@@ -425,18 +448,33 @@ export function createApp({ db, summarizer, ingestFn = ingest, expandFn = expand
     return c.body(toEnex(gists), 200, { "content-type": "application/enex+xml; charset=utf-8", "content-disposition": 'attachment; filename="gist-export.enex"' });
   });
 
-  // ---------- bulk import (playlists, shows, feeds, pasted link lists) ----------
+  // ---------- connected accounts ----------
+  app.get("/api/connections", (c) => c.json({ connections: connections.list(c.get("userId")) }));
+  app.post("/api/connections/:provider/start", (c) => {
+    const p = provider(c);
+    return c.json({ url: connections.start(c.get("userId"), p, callbackUrl(c, p)) });
+  });
+  app.delete("/api/connections/:provider", async (c) => {
+    await connections.disconnect(c.get("userId"), provider(c));
+    return c.json({ ok: true });
+  });
+  app.get("/api/connections/:provider/lists", async (c) => c.json({ lists: await connections.savedLists(c.get("userId"), provider(c)) }));
+
+  // ---------- bulk import (playlists, shows, feeds, pasted link lists, connected-account lists) ----------
   app.post("/api/imports", async (c) => {
     const uid = c.get("userId");
-    const b = await body<{ url?: string; urls?: string[]; limit?: number; templateId?: string; focus?: string; folderId?: string | null; title?: string }>(c);
+    const b = await body<{ url?: string; urls?: string[]; connection?: { provider?: string; listId?: string; title?: string }; limit?: number; templateId?: string; focus?: string; folderId?: string | null; title?: string }>(c);
     const limit = Math.max(1, Math.min(MAX_IMPORT_ITEMS, Number(b.limit) || 25));
     let col: Collection;
-    if (b.url?.trim()) col = await expandFn(b.url.trim(), limit);
+    if (b.connection?.listId) {
+      const p = b.connection.provider as Provider;
+      if (!PROVIDERS.includes(p)) fail(400, "Unknown account type.");
+      col = await connections.expand(uid, p, b.connection.listId, limit, b.connection.title);
+    } else if (b.url?.trim()) col = await expandFn(b.url.trim(), limit);
     else if (b.urls?.length) {
       const urls = [...new Set(b.urls.map((u) => u.trim()).filter((u) => /^https?:\/\//i.test(u)))];
       if (!urls.length) fail(400, "Paste at least one link.");
-      col = { kind: "youtube-playlist", title: b.title?.trim() || `Imported links (${new Date().toLocaleDateString("en-CA")})`, items: urls.slice(0, limit).map((url) => ({ url, title: null })), skipped: urls.length > limit ? [{ title: null, reason: `${urls.length - limit} more link(s) beyond the ${limit}-item limit` }] : [] };
-      (col as { kind: string }).kind = "links";
+      col = { kind: "links", title: b.title?.trim() || `Imported links (${new Date().toLocaleDateString("en-CA")})`, items: urls.slice(0, limit).map((url) => ({ url, title: null })), skipped: urls.length > limit ? [{ title: null, reason: `${urls.length - limit} more link(s) beyond the ${limit}-item limit` }] : [] };
     } else fail(400, "Paste a playlist link or a list of links.");
     for (let i = 0; i < col!.items.length; i++) if (!bulkRate.take(uid)) fail(429, "That's more than the hourly bulk limit. Try a smaller import or wait a little.");
     const template = resolveTemplate(uid, b.templateId);

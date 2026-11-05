@@ -106,6 +106,25 @@ export function openDb(path: string): DB {
     card BLOB,
     created_at TEXT NOT NULL
   )`);
+  // Connected YouTube / Spotify accounts. Tokens are AES-GCM sealed with GIST_TOKEN_KEY.
+  db.exec(`CREATE TABLE IF NOT EXISTS connections (
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    provider TEXT NOT NULL,
+    access_token TEXT NOT NULL,
+    refresh_token TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    account_id TEXT,
+    account_name TEXT,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, provider)
+  );
+  CREATE TABLE IF NOT EXISTS oauth_states (
+    state TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    provider TEXT NOT NULL,
+    verifier TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  )`);
   return db;
 }
 
