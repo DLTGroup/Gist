@@ -25,8 +25,15 @@ services:
         sync: false
       - key: GIST_TOKEN_KEY
         generateValue: true
-      - key: GIST_MODEL
-        value: claude-opus-5-5
+      # Which models write gists, in order; later ones take over if earlier ones fail. See docs/MODELS.md.
+      - key: GIST_MODELS
+        value: anthropic/claude-opus-5-5
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
       - key: GIST_EFFORT
         value: medium
       - key: GIST_DB_PATH
