@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
-import type { ExtractionTemplate, IngestedSource, Summary, SummarySection } from "@gist/core";
-import { SUMMARY_JSON_SCHEMA, SYSTEM_PROMPT, buildUserPrompt } from "@gist/core";
+import type { CardKind, CardSource, ExtractionTemplate, IngestedSource, Summary, SummarySection } from "@gist/core";
+import { CARD_JSON_SCHEMA, CARD_SYSTEM_PROMPT, SUMMARY_JSON_SCHEMA, SYSTEM_PROMPT, buildCardPrompt, buildUserPrompt, clozeCard } from "@gist/core";
 
 export interface Summarizer {
   readonly model: string;
@@ -142,4 +142,75 @@ export function createSummarizer(): Summarizer {
   if (mode === "demo") return new DemoSummarizer();
   if (mode === "claude" || process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN) return new ClaudeSummarizer();
   return new DemoSummarizer();
+}
+
+// ---------- flashcards from starred takeaways ----------
+
+export interface WrittenCard {
+  /** Index of the takeaway in the request. */
+  index: number;
+  kind: CardKind;
+  front: string;
+  back: string;
+}
+
+export interface CardWriter {
+  readonly model: string;
+  writeCards(gistTitle: string, author: string | null, takeaways: CardSource[]): Promise<WrittenCard[]>;
+}
+
+/**
+ * Writes cards with Claude. Cards are short, so this runs at low effort; GIST_CARD_MODEL can point
+ * it at a cheaper model (e.g. claude-haiku-5-5) once card quality there has been checked.
+ */
+export class ClaudeCardWriter implements CardWriter {
+  private client = new Anthropic();
+  constructor(
+    readonly model = process.env.GIST_CARD_MODEL || process.env.GIST_MODEL || "claude-opus-5-5",
+    private effort: Effort = (process.env.GIST_CARD_EFFORT as Effort) || "low",
+  ) {}
+
+  async writeCards(gistTitle: string, author: string | null, takeaways: CardSource[]): Promise<WrittenCard[]> {
+    let message;
+    try {
+      const stream = this.client.beta.messages.stream({
+        model: this.model,
+        max_tokens: 16000,
+        ...(this.model.startsWith("claude-haiku") ? {} : { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const }),
+        thinking: { type: "adaptive" },
+        output_config: { effort: this.effort, format: { type: "json_schema", schema: CARD_JSON_SCHEMA as unknown as Record<string, unknown> } },
+        system: [{ type: "text", text: CARD_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
+        messages: [{ role: "user", content: buildCardPrompt(gistTitle, author, takeaways) }],
+      });
+      message = await stream.finalMessage();
+    } catch (err) {
+      if (err instanceof Anthropic.RateLimitError) throw new SummarizeError("We're busy right now. Please try again in a minute.", 429);
+      if (err instanceof Anthropic.APIError) throw new SummarizeError(`Couldn't write the cards (${err.status}). Please try again.`);
+      throw err;
+    }
+    if (message.stop_reason === "refusal") throw new SummarizeError("These takeaways couldn't be turned into cards.", 422);
+    const text = message.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("");
+    let parsed: { cards?: WrittenCard[] };
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      throw new SummarizeError("The cards came back malformed. Please try again.");
+    }
+    const cards = (parsed.cards ?? []).filter((c) => Number.isInteger(c.index) && c.index >= 0 && c.index < takeaways.length && c.front?.trim() && c.back?.trim());
+    // Every takeaway gets at least one card, even if the model skipped it.
+    for (let i = 0; i < takeaways.length; i++) if (!cards.some((c) => c.index === i)) cards.push({ index: i, ...clozeCard(takeaways[i].text) });
+    return cards.map((c) => ({ index: c.index, kind: c.kind === "cloze" ? "cloze" : "qa", front: c.front.trim().slice(0, 600), back: c.back.trim().slice(0, 600) }));
+  }
+}
+
+/** Offline card writer: one cloze card per takeaway. */
+export class DemoCardWriter implements CardWriter {
+  readonly model = "demo-cloze";
+  async writeCards(_title: string, _author: string | null, takeaways: CardSource[]): Promise<WrittenCard[]> {
+    return takeaways.map((t, index) => ({ index, ...clozeCard(t.text) }));
+  }
+}
+
+export function createCardWriter(summarizer: Summarizer): CardWriter {
+  return summarizer.model.startsWith("demo") ? new DemoCardWriter() : new ClaudeCardWriter();
 }

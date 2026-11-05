@@ -5,3 +5,4 @@ export * from "./metrics.ts";
 export * from "./prompt.ts";
 export * from "./render.ts";
 export * from "./share.ts";
+export * from "./memory.ts";

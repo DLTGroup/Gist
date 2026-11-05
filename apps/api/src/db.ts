@@ -2,6 +2,7 @@ import { DatabaseSync } from "node:sqlite";
 import { randomUUID } from "node:crypto";
 import type { ExtractionTemplate, Folder, Gist, UserSettings } from "@gist/core";
 import { DEFAULT_ASSUMPTIONS, summaryText } from "@gist/core";
+import { migrateMemory } from "./memory.ts";
 
 export type DB = DatabaseSync;
 
@@ -106,6 +107,7 @@ export function openDb(path: string): DB {
     card BLOB,
     created_at TEXT NOT NULL
   )`);
+  migrateMemory(db);
   return db;
 }
 
