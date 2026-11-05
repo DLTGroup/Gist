@@ -14,7 +14,7 @@ This is the first end-to-end build: one backend, a web app, a desktop app (macOS
 | **Tailoring** | 8 built-in templates (Quick gist, Takeaways and action items, Study notes, How-to steps, Podcast highlights, Research brief, Decision brief, Recipe card), a template builder (sections, format, length, tone, audience, timestamps), and a per-gist "What are you looking for?" focus. Re-run any gist with another template or focus. |
 | **Savings** | Per-gist and cumulative time saved, value of that time, words avoided and % less effort, by week and source type. Assumptions (hourly value, playback speed, reading speed, note-taking overhead) are shown and editable. Landing page has a live savings calculator. |
 | **Organization** | Folders, tags (auto-suggested, editable), favourites, full-text search (SQLite FTS5), filters by type. |
-| **Memory** | Spaced repetition built on FSRS-6 (the open scheduler Anki uses, via `ts-fsrs`). Star any takeaway (or "Remember all") and Claude writes a flashcard from it that links back to the exact moment in the video or episode. Reviews use Again / Hard / Good / Easy with the next interval shown on each button; target recall (75–97%) and new cards per day are adjustable. Multiple-choice quizzes per deck or gist. Decks can be shared by link: members study the same cards on their own schedules, and owners can make members editors. Daily reminders through a private calendar feed (any phone or desktop calendar) and browser notifications. Web and mobile. |
+| **Memory** | Spaced repetition built on FSRS-6 (the open scheduler Anki uses, via `ts-fsrs`). Star any takeaway (or "Remember all") and the AI writes a flashcard from it that links back to the exact moment in the video or episode. Reviews use Again / Hard / Good / Easy with the next interval shown on each button; target recall (75–97%) and new cards per day are adjustable. Multiple-choice quizzes per deck or gist. Decks can be shared by link: members study the same cards on their own schedules, and owners can make members editors. Daily reminders through a private calendar feed (any phone or desktop calendar) and browser notifications. Web and mobile. |
 | **Exports** | Notion (API), Obsidian (deep link into the vault), Evernote (.enex), Markdown with front matter (Obsidian/Logseq), plain text, JSON, webhook (Zapier/Make/n8n → OneNote, Google Docs, Slack…), the system share sheet (Apple Notes, Keep, OneNote apps), and auto-send of every new gist. |
 | **Capture** | Web: installable PWA with a share target. Desktop: Ctrl/⌘+Shift+G gists the link on your clipboard, tray menu, `gist://new?url=…` links. Mobile: share a link to Gist from YouTube, Podcasts, Spotify or a browser. |
 
@@ -56,7 +56,7 @@ The production build serves the web app and API from one origin, with security h
 
 ## Configuration
 
-See `.env.example`. Key settings: `ANTHROPIC_API_KEY`, `GIST_MODEL` (default `claude-opus-5-5`), `GIST_EFFORT` (default `medium`), `GIST_CARD_MODEL` (flashcard writer, defaults to `GIST_MODEL` at low effort), `DEEPGRAM_API_KEY` (podcast audio without a published transcript), `GIST_DB_PATH`, `GIST_CORS_ORIGINS`.
+See `.env.example`. Key settings: `ANTHROPIC_API_KEY`, `GIST_MODEL` (default `claude-opus-5-5`), `GIST_EFFORT` (default `medium`), `GIST_CARD_MODEL` (flashcard writer, default `claude-haiku-5-5` at low effort; swap it as prices and accuracy change), `DEEPGRAM_API_KEY` (podcast audio without a published transcript), `GIST_DB_PATH`, `GIST_CORS_ORIGINS`.
 
 ## How savings are estimated
 

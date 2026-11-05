@@ -160,13 +160,14 @@ export interface CardWriter {
 }
 
 /**
- * Writes cards with Claude. Cards are short, so this runs at low effort; GIST_CARD_MODEL can point
- * it at a cheaper model (e.g. claude-haiku-5-5) once card quality there has been checked.
+ * Writes cards with the model in GIST_CARD_MODEL. Cards are one-line jobs, so the default is the
+ * low-cost model at low effort; switch the env var when a better price-to-accuracy option appears,
+ * no code change needed. The user-facing app never names the model.
  */
 export class ClaudeCardWriter implements CardWriter {
   private client = new Anthropic();
   constructor(
-    readonly model = process.env.GIST_CARD_MODEL || process.env.GIST_MODEL || "claude-opus-5-5",
+    readonly model = process.env.GIST_CARD_MODEL || "claude-haiku-5-5",
     private effort: Effort = (process.env.GIST_CARD_EFFORT as Effort) || "low",
   ) {}
 
