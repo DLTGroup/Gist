@@ -73,6 +73,12 @@ describe("API end to end", () => {
     expect(sav.json.totals.gists).toBe(2);
     expect(sav.json.totals.minutesSaved).toBeGreaterThan(20);
     expect(sav.json.assumptions.hourlyRate).toBe(60);
+    const kinds = sav.json.daily.map((d: { kind: string }) => d.kind).sort();
+    expect(kinds).toEqual(["text", "youtube"]);
+    expect(sav.json.daily.reduce((a: number, d: { gists: number }) => a + d.gists, 0)).toBe(2);
+    const local = await call("GET", "/api/savings?tz=America/Toronto");
+    expect(local.json.daily[0].date).toBe(new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto" }).format(new Date()));
+    expect((await call("GET", "/api/savings?tz=Not/AZone")).status).toBe(200);
 
     const me = await call("PATCH", "/api/settings", { notionToken: "secret_abcdef1234" });
     expect(me.json.user.settings.notionToken).toBe("••••1234");

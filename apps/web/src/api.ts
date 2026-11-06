@@ -1,4 +1,4 @@
-import type { ExportTarget, ExtractionTemplate, Folder, Gist, UserSettings } from "@gist/core";
+import type { DailySavings, ExportTarget, ExtractionTemplate, Folder, Gist, UserSettings } from "@gist/core";
 import type { AuthenticationResponseJSON, PublicKeyCredentialCreationOptionsJSON, PublicKeyCredentialRequestOptionsJSON, RegistrationResponseJSON } from "@simplewebauthn/browser";
 
 declare global {
@@ -105,6 +105,8 @@ export interface EmailVerifyResult { token: string; isNew: boolean; recovery: bo
 
 export interface SavingsReport {
   totals: Totals;
+  /** Savings per calendar day and source kind, in the time zone the app asked for. */
+  daily: DailySavings[];
   byWeek: (Totals & { week: string })[];
   byKind: (Totals & { kind: string })[];
   assumptions: { readingWpm: number; noteTakingFactor: number; hourlyRate: number; currency: string; playbackSpeed: number };
@@ -177,7 +179,7 @@ export const api = {
   createShare: (id: string, card?: string) => req<{ share: ShareInfo }>("POST", `/api/gists/${id}/share`, { card }),
   deleteShare: (id: string) => req("DELETE", `/api/gists/${id}/share`),
   send: (id: string, target: ExportTarget) => req<{ url: string | null; openOnClient?: boolean }>("POST", `/api/gists/${id}/send`, { target }),
-  savings: () => req<SavingsReport>("GET", "/api/savings"),
+  savings: () => req<SavingsReport>("GET", `/api/savings?tz=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC")}`),
   connections: () => req<{ connections: ConnectionInfo[] }>("GET", "/api/connections"),
   startConnection: (p: AccountProvider) => req<{ url: string }>("POST", `/api/connections/${p}/start`),
   disconnect: (p: AccountProvider) => req("DELETE", `/api/connections/${p}`),

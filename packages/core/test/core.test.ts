@@ -3,6 +3,7 @@ import {
   sourcePlatform,
   BUILT_IN_TEMPLATES, buildUserPrompt, computeSavings, detectSourceKind, formatMinutes, obsidianUri,
   sourceLinks, timestampLink, toEnex, toMarkdown, toNotionBlocks, validateTemplate, youtubeLinks, youtubeVideoId, type Gist,
+  bucketSavings, changeFromPrevious, periodStart, projectCurrent, recentPace, type DailySavings,
 } from "../src/index.ts";
 
 describe("source detection", () => {
@@ -149,3 +150,48 @@ function sampleGistForLinks(): Gist {
     savings: null,
   } as unknown as Gist;
 }
+
+describe("savings periods", () => {
+  const now = new Date(2026, 10, 6, 15, 0); // Friday, November 6, 2026, 3 p.m. local
+  const day = (y: number, m: number, d: number, minutes: number, kind = "youtube"): DailySavings => ({
+    date: `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`, kind, gists: 1, minutesSaved: minutes, moneySaved: minutes / 2,
+  });
+  const days = [day(2026, 11, 6, 30), day(2026, 11, 3, 60, "podcast"), day(2026, 10, 30, 20), day(2026, 10, 1, 10), day(2025, 6, 1, 5)];
+
+  it("starts weeks on Monday and months and years on the first", () => {
+    expect(periodStart(now, "week").toDateString()).toBe(new Date(2026, 10, 2).toDateString());
+    expect(periodStart(now, "month").getDate()).toBe(1);
+    expect(periodStart(now, "year").getMonth()).toBe(0);
+  });
+
+  it("buckets days into each period, oldest first, ending with the current one", () => {
+    const w = bucketSavings(days, "week", now);
+    expect(w).toHaveLength(12);
+    expect(w[11]).toMatchObject({ current: true, gists: 2, minutesSaved: 90 });
+    expect(w[10].minutesSaved).toBe(20);
+    const m = bucketSavings(days, "month", now);
+    expect(m[11].minutesSaved).toBe(90);
+    expect(m[10].minutesSaved).toBe(30);
+    const d = bucketSavings(days, "day", now);
+    expect(d).toHaveLength(14);
+    expect(d[13].minutesSaved).toBe(30);
+    const y = bucketSavings(days, "year", now);
+    expect(y.map((b) => b.start.getFullYear())).toEqual([2024, 2025, 2026]);
+    expect(y[2].minutesSaved).toBe(120);
+  });
+
+  it("projects the current period from the last 28 days", () => {
+    const pace = recentPace(days, now);
+    expect(pace.minutesPerDay).toBeCloseTo(110 / 28);
+    const w = bucketSavings(days, "week", now);
+    const p = projectCurrent(w[11], pace, now);
+    expect(p.minutesSaved).toBeGreaterThan(90);
+    expect(p.minutesSaved).toBeLessThan(90 + (110 / 28) * 3);
+  });
+
+  it("compares with the previous period at the same point", () => {
+    // This week to Friday: 90. Last week Monday to Friday: 20 (October 30).
+    expect(changeFromPrevious(days, "week", now)).toBe(350);
+    expect(changeFromPrevious(days, "day", now)).toBeNull();
+  });
+});
