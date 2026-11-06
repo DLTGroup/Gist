@@ -3,6 +3,7 @@ import { shareLinks, shareMessage, speechSegments, type Gist, type IngestedSourc
 import { openDb } from "../src/db.ts";
 import { createApp } from "../src/app.ts";
 import { DemoSummarizer } from "../src/summarize.ts";
+import { member } from "./helpers.ts";
 
 const para = "Composting turns kitchen scraps into rich soil for the garden. Balance green material like vegetable peels with brown material like dry leaves. Turn the pile every week so oxygen reaches the microbes doing the work. Keep the pile about as damp as a wrung-out sponge. ";
 const src = (): IngestedSource => ({
@@ -21,14 +22,14 @@ function setup() {
     const type = res.headers.get("content-type") ?? "";
     return { status: res.status, type, json: type.includes("json") ? await res.json() : null, text: type.includes("html") ? await res.text() : null, bytes: type.includes("png") ? new Uint8Array(await res.arrayBuffer()) : null };
   };
-  return { call, setToken: (t: string) => (token = t), clearToken: () => (token = "") };
+  return { call, db, setToken: (t: string) => (token = t), clearToken: () => (token = "") };
 }
 
 describe("share links", () => {
   it("creates a public page with preview tags and a card image, and can be turned off", async () => {
-    const { call, setToken, clearToken } = setup();
-    const su = await call("POST", "/api/auth/signup", { email: "a@example.ca", password: "correct horse" });
-    setToken(su.json.token);
+    const { call, db, setToken, clearToken } = setup();
+    const token = member(db, "a@example.ca");
+    setToken(token);
     const g = (await call("POST", "/api/gists?wait=1", { url: "https://youtu.be/dQw4w9WgXcQ", templateId: "quick-gist" })).json.gist;
 
     expect((await call("GET", `/api/gists/${g.id}/share`)).json.share).toBeNull();
@@ -53,7 +54,7 @@ describe("share links", () => {
     expect(img.type).toBe("image/png");
     expect(img.bytes!.slice(0, 4)).toEqual(new Uint8Array([0x89, 0x50, 0x4e, 0x47]));
 
-    setToken(su.json.token);
+    setToken(token);
     expect((await call("DELETE", `/api/gists/${g.id}/share`)).status).toBe(200);
     clearToken();
     expect((await call("GET", path)).status).toBe(404);
@@ -61,10 +62,10 @@ describe("share links", () => {
   });
 
   it("only lets the owner share a gist", async () => {
-    const { call, setToken } = setup();
-    setToken((await call("POST", "/api/auth/signup", { email: "a@example.ca", password: "correct horse" })).json.token);
+    const { call, db, setToken } = setup();
+    setToken(member(db, "a@example.ca"));
     const g = (await call("POST", "/api/gists?wait=1", { url: "https://youtu.be/dQw4w9WgXcQ" })).json.gist;
-    setToken((await call("POST", "/api/auth/signup", { email: "b@example.ca", password: "correct horse" })).json.token);
+    setToken(member(db, "b@example.ca"));
     expect((await call("POST", `/api/gists/${g.id}/share`, {})).status).toBe(404);
   });
 });

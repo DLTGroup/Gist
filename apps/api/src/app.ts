@@ -18,7 +18,8 @@ import {
 } from "@gist/core";
 import type { DB } from "./db.ts";
 import { DEFAULT_SETTINGS, getGist, getSettings, listFolders, listTemplates, newId, normalizeTag, now, reindex, rowToGist, setTags } from "./db.ts";
-import { createSession, deleteSession, hashPassword, userIdForToken, verifyPassword } from "./auth.ts";
+import { sessionForToken } from "./auth.ts";
+import { RECOVERY_METHOD, createMailer, mountIdentity, type IdentityConfig, type Mailer } from "./identity.ts";
 import { IngestError, ingest } from "./ingest/index.ts";
 import { MAX_IMPORT_ITEMS, expandCollection, type Collection } from "./ingest/playlist.ts";
 import { SummarizeError, type Summarizer } from "./summarize.ts";
@@ -27,7 +28,7 @@ import { renderSharePage } from "./sharePage.ts";
 import { ConnectionError, Connections, PROVIDERS, type Provider } from "./connections.ts";
 import { randomBytes } from "node:crypto";
 
-type Env = { Variables: { userId: string } };
+type Env = { Variables: { userId: string; isGuest: boolean } };
 type Row = Record<string, unknown>;
 
 export interface AppDeps {
@@ -39,27 +40,65 @@ export interface AppDeps {
   ingestFn?: typeof ingest;
   expandFn?: typeof expandCollection;
   corsOrigins?: string[];
+  /** Sends sign-in codes. Defaults to Resend when configured, or the server log in development. */
+  mailer?: Mailer | null;
+  /** Test overrides for sign-in (Google token verification, environment, guest limit). */
+  identity?: Partial<Pick<IdentityConfig, "env" | "fetchFn" | "verifyGoogleIdToken" | "extraOrigins">>;
+  /** How many gists someone can make before creating an account. */
+  guestGistLimit?: number;
 }
+
+/**
+ * What a guest (someone who hasn't created an account yet) may do: make a gist, read it, share it.
+ * Everything else, such as sending to a notes app, downloading, importing or changing settings,
+ * answers 403 with code "login_required" so the app can ask them to sign in. Deny by default.
+ */
+const GUEST_ALLOWED: [string, RegExp][] = [
+  ["GET", /^\/api\/(me|templates|folders|tags|gists|savings)$/],
+  ["GET", /^\/api\/gists\/[^/]+$/],
+  ["POST", /^\/api\/gists$/],
+  ["DELETE", /^\/api\/gists\/[^/]+$/],
+  ["GET", /^\/api\/gists\/[^/]+\/share$/],
+  ["POST", /^\/api\/gists\/[^/]+\/share$/],
+  ["DELETE", /^\/api\/gists\/[^/]+\/share$/],
+];
+const GUEST_DAYS = 30;
 
 const SECRET_FIELDS: (keyof UserSettings)[] = ["notionToken"];
 
-export function createApp({ db, summarizer, ingestFn = ingest, expandFn = expandCollection, corsOrigins = [], connections = new Connections(db) }: AppDeps) {
+export function createApp({ db, summarizer, ingestFn = ingest, expandFn = expandCollection, corsOrigins = [], connections = new Connections(db), mailer = createMailer(), identity = {}, guestGistLimit = Number(process.env.GIST_GUEST_GISTS ?? 1) }: AppDeps) {
   const app = new Hono<Env>();
+  // Guests who never created an account are removed after a month, with their gists and share links.
+  const staleGuests = db.prepare("SELECT id FROM users WHERE is_guest = 1 AND created_at < ?").all(new Date(Date.now() - GUEST_DAYS * 86400_000).toISOString()) as Row[];
+  for (const g of staleGuests) {
+    db.prepare("DELETE FROM gists_fts WHERE user_id = ?").run(g.id as string);
+    db.prepare("DELETE FROM users WHERE id = ?").run(g.id as string);
+  }
   const jobs = new JobQueue(3);
   const rate = new RateLimiter(40, 3600_000);
   const bulkRate = new RateLimiter(150, 3600_000);
 
   app.use("*", secureHeaders({ crossOriginEmbedderPolicy: false, contentSecurityPolicy: { defaultSrc: ["'self'"], imgSrc: ["'self'", "https:", "data:"], styleSrc: ["'self'", "'unsafe-inline'"], connectSrc: ["'self'"], frameAncestors: ["'none'"] } }));
   app.use("/api/*", bodyLimit({ maxSize: 4 * 1024 * 1024, onError: (c) => c.json({ error: "That's too much text to send at once." }, 413) }));
-  const authRate = new RateLimiter(20, 15 * 60_000);
+  const authRate = new RateLimiter(30, 15 * 60_000);
   app.use("/api/auth/*", async (c, next) => {
+    if (c.req.method !== "POST") return next();
     const ip = c.req.header("x-forwarded-for")?.split(",")[0].trim() || c.req.header("x-real-ip") || "local";
     if (!authRate.take(ip)) fail(429, "Too many attempts. Please wait a few minutes and try again.");
     await next();
   });
-  app.use("/api/*", cors({ origin: (o) => (corsOrigins.includes(o) || corsOrigins.includes("*") ? o : null), allowHeaders: ["authorization", "content-type"], allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE"] }));
+  app.use("/api/*", cors({ origin: (o) => (corsOrigins.includes(o) || corsOrigins.includes("*") ? o : null), allowHeaders: ["authorization", "content-type", "x-gist-client"], allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE"], credentials: true }));
+  // Cross-site request forgery: the web app's session is a cookie, so any request that changes
+  // something must also carry a custom header, which other sites can't add without CORS approval.
+  // Native apps send a bearer token instead and aren't affected.
+  app.use("/api/*", async (c, next) => {
+    const unsafe = !["GET", "HEAD", "OPTIONS"].includes(c.req.method);
+    if (unsafe && !c.req.header("authorization") && !c.req.header("x-gist-client")) fail(403, "This request was blocked for security. Reload the page and try again.");
+    await next();
+  });
 
   app.onError((err, c) => {
+    if (err instanceof HTTPException && err.res) return err.getResponse();
     if (err instanceof HTTPException) return c.json({ error: err.message }, err.status);
     if (err instanceof IngestError || err instanceof SummarizeError || err instanceof ExportError || err instanceof ConnectionError) return c.json({ error: err.message }, err.status as 400);
     console.error(err);
@@ -70,6 +109,16 @@ export function createApp({ db, summarizer, ingestFn = ingest, expandFn = expand
     throw new HTTPException(status, { message });
   };
   const body = async <T>(c: Context): Promise<T> => (await c.req.json().catch(() => ({}))) as T;
+  const publicBase = (c: Context) => {
+    const fixed = process.env.GIST_PUBLIC_URL?.replace(/\/$/, "");
+    if (fixed) return fixed;
+    const u = new URL(c.req.url);
+    const proto = c.req.header("x-forwarded-proto")?.split(",")[0].trim() || u.protocol.replace(":", "");
+    const host = c.req.header("x-forwarded-host")?.split(",")[0].trim() || c.req.header("host") || u.host;
+    return `${proto}://${host}`;
+  };
+  /** Gists a guest has made, not counting ones that failed (a bad link shouldn't use up the free try). */
+  const guestGistCount = (uid: string) => Number((db.prepare("SELECT COUNT(*) AS n FROM gists WHERE user_id = ? AND status != 'failed'").get(uid) as Row).n);
 
   // ---------- public ----------
   // Share pages: anyone with the link can read the summary. Turning sharing off deletes the token.
@@ -95,24 +144,7 @@ export function createApp({ db, summarizer, ingestFn = ingest, expandFn = expand
   // The model in use is an internal detail and is not exposed here.
   app.get("/api/health", (c) => c.json({ ok: true, demo: summarizer.model.startsWith("demo") }));
 
-  app.post("/api/auth/signup", async (c) => {
-    const { email, password, name } = await body<{ email?: string; password?: string; name?: string }>(c);
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) fail(400, "Enter a valid email address.");
-    if (!password || password.length < 8) fail(400, "Use a password of at least 8 characters.");
-    if (db.prepare("SELECT 1 FROM users WHERE email = ?").get(email!)) fail(409, "An account with that email already exists. Try signing in.");
-    const id = newId();
-    db.prepare("INSERT INTO users (id, email, name, password_hash, settings_json, created_at) VALUES (?, ?, ?, ?, ?, ?)").run(
-      id, email!.trim(), name?.trim() || null, await hashPassword(password!), "{}", now(),
-    );
-    return c.json({ token: createSession(db, id), user: publicUser(id) }, 201);
-  });
-
-  app.post("/api/auth/login", async (c) => {
-    const { email, password } = await body<{ email?: string; password?: string }>(c);
-    const r = db.prepare("SELECT id, password_hash FROM users WHERE email = ?").get(email ?? "") as Row | undefined;
-    if (!r || !(await verifyPassword(password ?? "", r.password_hash as string))) fail(401, "Email or password is incorrect.");
-    return c.json({ token: createSession(db, r!.id as string), user: publicUser(r!.id as string) });
-  });
+  const { currentToken, hasPasskeys } = mountIdentity(app, { db, mailer, publicBase: (c) => publicBase(c), ...identity });
 
   // ---------- connected accounts: provider redirect (public; the one-time state identifies the user) ----------
   const provider = (c: Context): Provider => {
@@ -136,27 +168,43 @@ export function createApp({ db, summarizer, ingestFn = ingest, expandFn = expand
 
   // ---------- authenticated ----------
   app.use("/api/*", async (c, next) => {
-    const token = c.req.header("authorization")?.replace(/^Bearer\s+/i, "");
-    const userId = token ? userIdForToken(db, token) : null;
-    if (!userId) fail(401, "Please sign in.");
-    c.set("userId", userId!);
+    const token = currentToken(c);
+    const session = token ? sessionForToken(db, token) : null;
+    const user = session ? (db.prepare("SELECT id, is_guest, status FROM users WHERE id = ?").get(session.userId) as Row | undefined) : undefined;
+    if (!user) fail(401, "Please sign in.");
+    if (user!.status !== "active") fail(403, "This account is locked. Contact support.");
+    // Account recovery on the website only allows adding a passkey (under /api/auth) and reading who you are.
+    if (session!.method === RECOVERY_METHOD && !(c.req.method === "GET" && c.req.path === "/api/me")) {
+      throw new HTTPException(403, { res: Response.json({ error: "Add a passkey to finish getting back into your account.", code: "passkey_required" }, { status: 403 }) });
+    }
+    const isGuest = !!user!.is_guest;
+    if (isGuest && !GUEST_ALLOWED.some(([m, re]) => m === c.req.method && re.test(c.req.path))) {
+      throw new HTTPException(403, { res: Response.json({ error: "Create a free account to do that. Your gists come with you.", code: "login_required" }, { status: 403 }) });
+    }
+    c.set("userId", user!.id as string);
+    c.set("isGuest", isGuest);
     await next();
   });
 
-  app.post("/api/auth/logout", (c) => {
-    deleteSession(db, c.req.header("authorization")!.replace(/^Bearer\s+/i, ""));
-    return c.json({ ok: true });
-  });
-
   function publicUser(id: string) {
-    const r = db.prepare("SELECT id, email, name, created_at FROM users WHERE id = ?").get(id) as Row;
+    const r = db.prepare("SELECT id, email, name, created_at, is_guest, recovery_until, google_sub FROM users WHERE id = ?").get(id) as Row;
     const settings = getSettings(db, id);
     const masked = { ...settings } as Record<string, unknown>;
     for (const f of SECRET_FIELDS) masked[f] = settings[f] ? "••••" + String(settings[f]).slice(-4) : null;
-    return { id: r.id, email: r.email, name: r.name, createdAt: r.created_at, settings: masked };
+    const recovering = r.recovery_until && (r.recovery_until as string) > now();
+    return {
+      id: r.id, email: r.email ?? null, name: r.name ?? null, createdAt: r.created_at, settings: masked,
+      isGuest: !!r.is_guest, hasPasskeys: hasPasskeys(id), google: !!r.google_sub,
+      recoveryUntil: recovering ? r.recovery_until : null,
+      ...(r.is_guest ? { guestGistsLeft: Math.max(0, guestGistLimit - guestGistCount(id)) } : {}),
+    };
   }
 
-  app.get("/api/me", (c) => c.json({ user: publicUser(c.get("userId")) }));
+  app.get("/api/me", (c) => {
+    const t = currentToken(c);
+    const restricted = !!t && sessionForToken(db, t)?.method === RECOVERY_METHOD;
+    return c.json({ user: { ...publicUser(c.get("userId")), ...(restricted ? { restricted: true } : {}) } });
+  });
 
   app.patch("/api/settings", async (c) => {
     const uid = c.get("userId");
@@ -281,6 +329,9 @@ export function createApp({ db, summarizer, ingestFn = ingest, expandFn = expand
 
   app.post("/api/gists", async (c) => {
     const uid = c.get("userId");
+    if (c.get("isGuest") && guestGistCount(uid) >= guestGistLimit) {
+      throw new HTTPException(403, { res: Response.json({ error: "Create a free account to keep making gists. The ones you've made come with you.", code: "login_required" }, { status: 403 }) });
+    }
     if (!rate.take(uid)) fail(429, "You've hit the hourly limit. Try again a little later.");
     const b = await body<{ url?: string; text?: string; title?: string; templateId?: string; focus?: string; folderId?: string; tags?: string[] }>(c);
     if (!b.url?.trim() && !b.text?.trim()) fail(400, "Paste a link or some text.");
@@ -399,14 +450,6 @@ export function createApp({ db, summarizer, ingestFn = ingest, expandFn = expand
 
   // ---------- share links ----------
   type ShareRow = { token: string; has_card: number; created_at: string };
-  const publicBase = (c: Context) => {
-    const fixed = process.env.GIST_PUBLIC_URL?.replace(/\/$/, "");
-    if (fixed) return fixed;
-    const u = new URL(c.req.url);
-    const proto = c.req.header("x-forwarded-proto")?.split(",")[0].trim() || u.protocol.replace(":", "");
-    const host = c.req.header("x-forwarded-host")?.split(",")[0].trim() || c.req.header("host") || u.host;
-    return `${proto}://${host}`;
-  };
   const shareRow = (gistId: string) => db.prepare("SELECT token, card IS NOT NULL AS has_card, created_at FROM shares WHERE gist_id = ?").get(gistId) as ShareRow | undefined;
   const shareJson = (c: Context, r: ShareRow | undefined) => {
     if (!r) return null;

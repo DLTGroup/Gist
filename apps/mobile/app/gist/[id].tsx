@@ -4,6 +4,8 @@ import { Stack, router, useLocalSearchParams } from "expo-router";
 import type { Gist } from "@gist/core";
 import { formatMinutes, formatMoney, formatTimestamp, sourceLinks, timestampLink, toMarkdown, toPlainText } from "@gist/core";
 import { api } from "../../lib/api";
+import { useSession } from "../../lib/session";
+import { askToSignIn, handledLoginRequired } from "../../lib/signinPrompt";
 import { useTheme } from "../../lib/theme";
 import { Button } from "../../lib/ui";
 import { ListenBar } from "../../lib/ListenBar";
@@ -11,6 +13,7 @@ import { ShareSheet } from "../../lib/ShareSheet";
 
 export default function GistScreen() {
   const t = useTheme();
+  const { user } = useSession();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [g, setG] = useState<Gist | null>(null);
   const [sharing, setSharing] = useState(false);
@@ -40,11 +43,13 @@ export default function GistScreen() {
       if (r.url) await Linking.openURL(r.url);
       else Alert.alert("Sent");
     } catch (e) {
-      Alert.alert("Couldn't send", (e as Error).message);
+      if (!handledLoginRequired(e)) Alert.alert("Couldn't send", (e as Error).message);
     }
   };
   const exportSheet = () =>
-    Alert.alert("Send to…", undefined, [
+    user?.isGuest
+      ? askToSignIn("Create a free account to send gists to your notes app. This gist comes with you.")
+      : Alert.alert("Send to…", undefined, [
       { text: "Notes app (share sheet)", onPress: () => Share.share({ title: g.summary?.title, message: toPlainText(g) }) },
       { text: "Markdown (share sheet)", onPress: () => Share.share({ title: g.summary?.title, message: toMarkdown(g, { frontMatter: true }) }) },
       { text: "Notion", onPress: () => send("notion") },

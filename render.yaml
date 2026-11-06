@@ -15,6 +15,17 @@ services:
         sync: false
       - key: DEEPGRAM_API_KEY
         sync: false
+      # The site's address, e.g. https://gist.example.ca. Passkeys are bound to this domain (docs/AUTH.md).
+      - key: GIST_PUBLIC_URL
+        sync: false
+      # Emails sign-in codes (resend.com). GIST_EMAIL_FROM must be on a domain verified with Resend.
+      - key: RESEND_API_KEY
+        sync: false
+      - key: GIST_EMAIL_FROM
+        sync: false
+      - key: GIST_GUEST_GISTS
+        value: "1"
+      # Google sign-in and YouTube import share one OAuth client.
       - key: GOOGLE_CLIENT_ID
         sync: false
       - key: GOOGLE_CLIENT_SECRET

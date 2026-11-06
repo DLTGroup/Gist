@@ -25,9 +25,14 @@ export function openDb(path: string): DB {
     PRAGMA foreign_keys = ON;
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
-      email TEXT NOT NULL UNIQUE COLLATE NOCASE,
+      email TEXT UNIQUE COLLATE NOCASE,
+      email_verified_at TEXT,
       name TEXT,
-      password_hash TEXT NOT NULL,
+      webauthn_user_handle TEXT UNIQUE,
+      google_sub TEXT UNIQUE,
+      is_guest INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'active',
+      recovery_until TEXT,
       settings_json TEXT NOT NULL DEFAULT '{}',
       created_at TEXT NOT NULL
     );
@@ -106,6 +111,70 @@ export function openDb(path: string): DB {
     card BLOB,
     created_at TEXT NOT NULL
   )`);
+  // Passwordless accounts (2026-11): drop stored password hashes, allow guests and passkeys.
+  const userCols = (db.prepare("PRAGMA table_info(users)").all() as { name: string }[]).map((c) => c.name);
+  if (userCols.includes("password_hash")) {
+    db.exec(`PRAGMA foreign_keys = OFF;
+      BEGIN;
+      CREATE TABLE users_v2 (
+        id TEXT PRIMARY KEY,
+        email TEXT UNIQUE COLLATE NOCASE,
+        email_verified_at TEXT,
+        name TEXT,
+        webauthn_user_handle TEXT UNIQUE,
+        google_sub TEXT UNIQUE,
+        is_guest INTEGER NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'active',
+        recovery_until TEXT,
+        settings_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL
+      );
+      INSERT INTO users_v2 (id, email, name, settings_json, created_at) SELECT id, email, name, settings_json, created_at FROM users;
+      DROP TABLE users;
+      ALTER TABLE users_v2 RENAME TO users;
+      COMMIT;
+      PRAGMA foreign_keys = ON;`);
+  }
+  db.exec(`CREATE TABLE IF NOT EXISTS credentials (
+    credential_id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    friendly_name TEXT,
+    public_key TEXT NOT NULL,
+    aaguid TEXT,
+    sign_count INTEGER NOT NULL DEFAULT 0,
+    backup_eligible INTEGER NOT NULL DEFAULT 0,
+    backup_state INTEGER NOT NULL DEFAULT 0,
+    transports TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL,
+    last_used_at TEXT
+  );
+  CREATE INDEX IF NOT EXISTS credentials_user ON credentials(user_id);
+  CREATE TABLE IF NOT EXISTS auth_challenges (
+    id TEXT PRIMARY KEY,
+    kind TEXT NOT NULL,
+    challenge TEXT NOT NULL,
+    user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS email_codes (
+    attempt_id TEXT PRIMARY KEY,
+    email TEXT NOT NULL COLLATE NOCASE,
+    code_hash TEXT NOT NULL,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS login_states (
+    state TEXT PRIMARY KEY,
+    verifier TEXT NOT NULL,
+    nonce TEXT NOT NULL,
+    guest_id TEXT,
+    next TEXT,
+    created_at TEXT NOT NULL
+  )`);
+  const sessCols = (db.prepare("PRAGMA table_info(sessions)").all() as { name: string }[]).map((c) => c.name);
+  if (!sessCols.includes("method")) db.exec("ALTER TABLE sessions ADD COLUMN method TEXT");
+
   // Connected YouTube / Spotify accounts. Tokens are AES-GCM sealed with GIST_TOKEN_KEY.
   db.exec(`CREATE TABLE IF NOT EXISTS connections (
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

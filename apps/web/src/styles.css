@@ -233,3 +233,30 @@ label { display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.3
 .saved-list .count { margin-left: auto; color: var(--muted); font-size: 0.85rem; }
 .acct-tabs { display: flex; gap: 0.4rem; margin-bottom: 0.5rem; }
 .acct-tabs button { display: inline-flex; align-items: center; gap: 0.35rem; }
+
+/* Sign-in (no passwords: Google, passkeys, emailed code) */
+.auth .brand { margin-bottom: 1.2rem; }
+.auth-card { display: grid; gap: 0.75rem; }
+.auth-card h1 { font-size: 1.35rem; margin: 0; }
+.auth-card p { margin: 0; }
+.auth-card form { display: grid; }
+.auth-wide, .auth-google, .auth-passkey { width: 100%; justify-content: center; }
+.auth-google, .auth-passkey { display: inline-flex; align-items: center; gap: 0.55rem; font-weight: 600; }
+.auth-or { display: flex; align-items: center; gap: 0.6rem; color: var(--muted); font-size: 0.8rem; }
+.auth-or::before, .auth-or::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+.auth-code { font: 600 1.5rem/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.4em; text-align: center; }
+.auth-switch { text-align: center; }
+button.link { border: 0; background: none; padding: 0; color: var(--accent); font: inherit; cursor: pointer; }
+button.link:hover { background: none; text-decoration: underline; }
+
+/* Guest banner and sign-in prompt */
+.guest-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.9rem; padding: 0.6rem 0.9rem; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); margin-bottom: 1rem; font-size: 0.9rem; }
+.guest-bar > span:first-child { flex: 1 1 280px; }
+.prompt { position: relative; background: var(--bg); border: 1px solid var(--border); border-radius: 20px; width: min(420px, 100%); padding: 1.4rem; display: grid; gap: 0.75rem; }
+.prompt h2 { margin: 0; font-size: 1.2rem; }
+.prompt p { margin: 0; }
+
+/* Passkeys in settings */
+.passkey-row { display: flex; align-items: center; gap: 0.7rem; padding: 0.6rem 0; border-top: 1px solid var(--border); flex-wrap: wrap; }
+.passkey-row:first-of-type { border-top: 0; }
+.passkey-row .grow { flex: 1; min-width: 160px; }

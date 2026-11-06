@@ -5,6 +5,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import type { ExtractionTemplate } from "@gist/core";
 import { detectCollection, detectSourceKind, extractLinks } from "@gist/core";
 import { api } from "../../lib/api";
+import { handledLoginRequired } from "../../lib/signinPrompt";
 import { useSession } from "../../lib/session";
 import { useTheme } from "../../lib/theme";
 import { Button, Field } from "../../lib/ui";
@@ -50,7 +51,7 @@ export default function NewGist() {
       setFocus("");
       router.push(`/gist/${gist.id}`);
     } catch (e) {
-      setError((e as Error).message);
+      if (!handledLoginRequired(e)) setError((e as Error).message);
     } finally {
       setBusy(false);
     }

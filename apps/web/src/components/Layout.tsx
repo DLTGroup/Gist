@@ -1,16 +1,18 @@
 import { useEffect, useState } from "react";
-import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import type { Folder } from "@gist/core";
 import { formatMinutes, formatMoney } from "@gist/core";
 import { api, type Totals } from "../api.ts";
 import { useSession } from "../main.tsx";
 import { Wordmark } from "./Wordmark.tsx";
+import { LoginPrompt } from "./LoginPrompt.tsx";
 
 export function Layout() {
-  const { demo } = useSession();
+  const { demo, user } = useSession();
   const [folders, setFolders] = useState<Folder[]>([]);
   const [totals, setTotals] = useState<Totals | null>(null);
   const loc = useLocation();
+  const next = encodeURIComponent(loc.pathname);
   useEffect(() => {
     api.folders().then((r) => setFolders(r.folders), () => {});
     api.savings().then((r) => setTotals(r.totals), () => {});
@@ -52,8 +54,19 @@ export function Layout() {
             Demo mode: summaries use a simple built-in extractor. Add a model API key on the server for full summaries.
           </p>
         )}
+        {user?.isGuest && (
+          <div className="guest-bar" role="note">
+            <span>
+              You're trying Gist without an account.{" "}
+              {user.guestGistsLeft ? "Make your first gist, then share it with anyone." : "Create a free account to make more, send gists to your notes app and keep them."}
+            </span>
+            <Link to={`/signin?next=${next}`}>Sign in</Link>
+            <Link className="btn btn-primary" to={`/signup?next=${next}`}>Create free account</Link>
+          </div>
+        )}
         <Outlet />
       </main>
+      <LoginPrompt />
     </div>
   );
 }

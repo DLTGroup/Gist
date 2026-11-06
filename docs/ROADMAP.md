@@ -4,7 +4,7 @@
 1. **Live check on a real deployment** with an Anthropic key: YouTube captions, Apple Podcasts, Spotify, RSS and a handful of blogs. Tune the prompt on 20–30 real sources per template.
 2. **Name and brand**: pick Gist or Briefly (one constant: `BRAND` in `packages/core/src/sources.ts`), check trade-marks and domains.
 3. **Hosting**: one container (Dockerfile) on Fly.io, Render or a Canadian region of AWS/GCP; SQLite on a volume to start, Postgres when there's more than one server.
-4. **Accounts**: email verification, password reset, sign in with Google/Apple (Apple sign-in is required on iOS if other social logins are offered).
+4. **Accounts**: passwordless sign-in is done (passkeys, Google, emailed codes; see AUTH.md). Next: native passkeys in the mobile app (associated domains), and Sign in with Apple if the iOS app ever offers Google sign-in (App Store rule for third-party logins).
 5. **Durable jobs**: move the in-process queue to a jobs table + worker so a restart doesn't drop work in progress.
 6. **YouTube robustness**: decide the approach in docs/LEGAL-NOTES.md §3.
 
