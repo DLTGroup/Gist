@@ -42,7 +42,7 @@ export class OpenAICompatibleSummarizer implements Summarizer {
       throw new SummarizeError("The summarizer sent an unreadable reply. Please try again.");
     }
     const choice = body.choices?.[0];
-    if (choice?.finish_reason === "length") throw new SummarizeError("The summary ran too long. Try a shorter template.", 422);
+    if (choice?.finish_reason === "length") throw new SummarizeError("The summary ran past the length limit for one gist. Try a shorter template for this source.", 422);
     if (choice?.finish_reason === "content_filter" || choice?.message?.refusal) throw new SummarizeError("This content couldn't be summarized.", 422);
     const parsed = parseJsonReply(choice?.message?.content ?? "");
     if (!parsed) throw new SummarizeError("The summary came back malformed. Please try again.");

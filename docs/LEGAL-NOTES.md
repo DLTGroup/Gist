@@ -6,7 +6,7 @@ Working notes for the product, not legal advice. Prepared from the earlier proje
 
 | Risk | What the product does |
 | --- | --- |
-| Reproducing protected expression | The system prompt requires summaries in the model's own words, at most two quotations of 20 words or fewer per gist, no verbatim lyrics, scripts or jokes, and no imitation of the creator's style (`packages/core/src/prompt.ts`). |
+| Reproducing protected expression | The system prompt requires summaries in the model's own words, at most two quotations of 20 words or fewer per gist (the Full extraction template allows up to ten of 25 words or fewer, a limit chosen for fair dealing: it records far more of a source than other templates, so its quotations are capped rather than unlimited), no verbatim lyrics, scripts or jokes, and no imitation of the creator's style (`packages/core/src/prompt.ts`). |
 | Substituting for the original (market harm) | Gists are short by design (≈150 / 400 / 900 words by length), always link back to the source and name the creator, and the UI tells users to check the original. |
 | Storing copies of transcripts or articles | Source text is used in memory only and is **not persisted**. Only the summary and metadata (title, author, URL, length, word count) are stored. Re-running a gist re-fetches the source. |
 | Attribution | Every export (Markdown, Notion, Evernote, text) ends with the source title, link and author. |

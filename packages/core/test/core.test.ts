@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   sourcePlatform,
-  BUILT_IN_TEMPLATES, buildUserPrompt, computeSavings, detectSourceKind, formatMinutes, obsidianUri,
+  BUILT_IN_TEMPLATES, DEFAULT_TEMPLATE_ID, buildUserPrompt, computeSavings, detectSourceKind, formatMinutes, obsidianUri,
   sourceLinks, timestampLink, toEnex, toMarkdown, toNotionBlocks, validateTemplate, youtubeLinks, youtubeVideoId, type Gist,
 } from "../src/index.ts";
 
@@ -112,12 +112,38 @@ describe("templates and prompt", () => {
   it("puts timestamps and the reader's focus in the prompt", () => {
     const p = buildUserPrompt(
       { kind: "youtube", url: "u", title: "T", author: null, publishedAt: null, thumbnailUrl: null, durationSeconds: 90, text: "a b", segments: [{ start: 0, text: "hello" }, { start: 45, text: "world" }] },
-      BUILT_IN_TEMPLATES[1], "pricing advice",
+      BUILT_IN_TEMPLATES.find((t) => t.id === "takeaways-actions")!, "pricing advice",
     );
     expect(p).toContain("[0:00|0s] hello");
     expect(p).toContain("[0:45|45s] world");
     expect(p).toContain("The reader specifically wants: pricing advice");
     expect(p).toContain('id="actions"');
+  });
+  it("full extraction is the default and carries its rules and quotation limit", () => {
+    expect(DEFAULT_TEMPLATE_ID).toBe("full-extraction");
+    const full = BUILT_IN_TEMPLATES.find((t) => t.id === DEFAULT_TEMPLATE_ID)!;
+    expect(full.sections).toHaveLength(19);
+    expect(full.length).toBe("exhaustive");
+    const p = buildUserPrompt(
+      { kind: "web", url: "u", title: "T", author: null, publishedAt: null, thumbnailUrl: null, durationSeconds: null, text: "a b" },
+      full, null,
+    );
+    expect(p).toContain("<template_rules>");
+    expect(p).toContain("[UNCLEAR]");
+    expect(p).toContain("at most 10 direct quotations in the whole gist, each 25 words or fewer");
+    expect(p).toContain('id="most-important"');
+    expect(p).toContain('id="summary"');
+  });
+  it("other templates keep the default quotation limit", () => {
+    const quick = BUILT_IN_TEMPLATES.find((t) => t.id === "takeaways-actions")!;
+    const p = buildUserPrompt({ kind: "text", url: null, title: "T", author: null, publishedAt: null, thumbnailUrl: null, durationSeconds: null, text: "a b" }, quick, null);
+    expect(p).toContain("at most 2 direct quotations");
+    expect(p).not.toContain("<template_rules>");
+  });
+  it("allows up to 20 sections and the exhaustive length", () => {
+    const sec = (i: number) => ({ id: `s${i}`, heading: `H${i}`, instruction: "x", format: "bullets" as const });
+    expect(validateTemplate({ name: "Big", length: "exhaustive", sections: Array.from({ length: 20 }, (_, i) => sec(i)) })).toBeNull();
+    expect(validateTemplate({ name: "Too big", sections: Array.from({ length: 21 }, (_, i) => sec(i)) })).toMatch(/20/);
   });
 });
 

@@ -49,7 +49,7 @@ export interface TemplateSection {
   format: SectionFormat;
 }
 
-export type Length = "brief" | "standard" | "detailed";
+export type Length = "brief" | "standard" | "detailed" | "exhaustive";
 
 export interface ExtractionTemplate {
   id: string;
@@ -63,6 +63,10 @@ export interface ExtractionTemplate {
   /** Who the notes are for, e.g. "a busy small-business owner". */
   audience?: string;
   includeTimestamps: boolean;
+  /** Standing instructions for this template, e.g. how to rank and attribute (shown to the model). */
+  guidance?: string;
+  /** Direct-quotation allowance. Defaults to 2 quotes of 20 words or fewer (see docs/LEGAL-NOTES.md). */
+  quotes?: { max: number; maxWords: number };
   builtIn?: boolean;
 }
 

@@ -47,7 +47,9 @@ export class AnthropicSummarizer implements Summarizer {
     try {
       const stream = this.client.beta.messages.stream({
         model: this.modelName,
-        max_tokens: 32000,
+        // Full extraction has no item limits, so long sources need a large output budget. Streaming
+        // keeps a long request from timing out.
+        max_tokens: 64000,
         // Server-side fallback: if a safety classifier declines, the API re-runs the request on
         // Anthropic's recommended fallback model instead of returning a refusal.
         betas: ["server-side-fallback-2026-07-01"],
@@ -66,7 +68,7 @@ export class AnthropicSummarizer implements Summarizer {
       throw err;
     }
     if (message.stop_reason === "refusal") throw new SummarizeError("This content couldn't be summarized.", 422);
-    if (message.stop_reason === "max_tokens") throw new SummarizeError("The summary ran too long. Try a shorter template.", 422);
+    if (message.stop_reason === "max_tokens") throw new SummarizeError("The summary ran past the length limit for one gist. Try a shorter template for this source.", 422);
     const text = message.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("");
     let parsed: Summary;
     try {
@@ -124,7 +126,7 @@ export class DemoSummarizer implements Summarizer {
       })
       .filter((x) => x.s.length > 40 && x.s.length < 320);
     const top = [...scored].sort((a, b) => b.score - a.score);
-    const perSection = template.length === "brief" ? 4 : template.length === "standard" ? 4 : 6;
+    const perSection = template.length === "brief" || template.length === "standard" ? 4 : 6;
     const used = new Set<number>();
     const timeFor = (sentence: string) => {
       if (!src.segments?.length || !template.includeTimestamps) return null;
@@ -135,7 +137,10 @@ export class DemoSummarizer implements Summarizer {
     const sections: SummarySection[] = template.sections.map((ts) => {
       const picks = top.filter((x) => !used.has(x.i)).slice(0, perSection).sort((a, b) => a.i - b.i);
       picks.forEach((p) => used.add(p.i));
-      if (ts.format === "paragraph") return { id: ts.id, heading: ts.heading, format: ts.format, paragraph: picks.slice(0, 2).map((p) => p.s).join(" ") || null, items: [] };
+      // Templates with many sections can run out of sentences; say so the way the template asks.
+      const none = template.guidance ? "None." : null;
+      if (ts.format === "paragraph") return { id: ts.id, heading: ts.heading, format: ts.format, paragraph: picks.slice(0, 2).map((p) => p.s).join(" ") || none, items: [] };
+      if (!picks.length && none) return { id: ts.id, heading: ts.heading, format: ts.format, paragraph: none, items: [] };
       return { id: ts.id, heading: ts.heading, format: ts.format, paragraph: null, items: picks.map((p) => ({ text: p.s, timestamp: timeFor(p.s) })) };
     });
     const tags = [...freq.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([w]) => w);
