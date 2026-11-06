@@ -3,6 +3,7 @@ import {
   sourcePlatform,
   BUILT_IN_TEMPLATES, buildUserPrompt, computeSavings, detectSourceKind, formatMinutes, obsidianUri,
   sourceLinks, timestampLink, toEnex, toMarkdown, toNotionBlocks, validateTemplate, youtubeLinks, youtubeVideoId, type Gist,
+  changeFromPrevious, paceUntil, periodRange, planPayback, periodSlots, periodStart, recentPace, sumRange, type HourlySavings,
 } from "../src/index.ts";
 
 describe("source detection", () => {
@@ -149,3 +150,72 @@ function sampleGistForLinks(): Gist {
     savings: null,
   } as unknown as Gist;
 }
+
+describe("savings periods", () => {
+  const now = new Date(2026, 10, 6, 15, 30); // Friday, November 6, 2026, 3:30 p.m. local
+  const at = (m: number, d: number, hour: number, minutes: number, kind = "youtube", y = 2026): HourlySavings => ({
+    date: `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`, hour, kind, gists: 1, minutesSaved: minutes, moneySaved: minutes / 2,
+  });
+  const entries = [at(11, 6, 9, 30), at(11, 6, 14, 5), at(11, 3, 20, 60, "podcast"), at(10, 30, 8, 20), at(10, 27, 10, 15), at(10, 1, 12, 10), at(6, 1, 9, 5, "web", 2025)];
+
+  it("starts weeks on Monday and months and years on the first", () => {
+    expect(periodStart(now, "week").toDateString()).toBe(new Date(2026, 10, 2).toDateString());
+    expect(periodStart(now, "month").getDate()).toBe(1);
+    expect(periodStart(now, "year").getMonth()).toBe(0);
+    expect(periodStart(now, "hour").getHours()).toBe(15);
+  });
+
+  it("splits a day into hours, a week or month into days and a year into months", () => {
+    const day = periodSlots(entries, "day", now);
+    expect(day).toHaveLength(24);
+    expect(day[9].minutesSaved).toBe(30);
+    expect(day[14].minutesSaved).toBe(5);
+    expect(day[15].current).toBe(true);
+    expect(day[16].future).toBe(true);
+    const week = periodSlots(entries, "week", now);
+    expect(week.map((s) => s.start.getDate())).toEqual([2, 3, 4, 5, 6, 7, 8]);
+    expect(week[1].minutesSaved).toBe(60);
+    expect(week[4]).toMatchObject({ minutesSaved: 35, gists: 2, current: true });
+    expect(periodSlots(entries, "month", now)).toHaveLength(30);
+    expect(periodSlots(entries, "month", now, -1)).toHaveLength(31);
+    const year = periodSlots(entries, "year", now);
+    expect(year).toHaveLength(12);
+    expect(year[9].minutesSaved).toBe(45);
+    expect(year[10].minutesSaved).toBe(95);
+  });
+
+  it("steps back to earlier periods", () => {
+    const { start, end } = periodRange("week", now, -1);
+    expect(start.toDateString()).toBe(new Date(2026, 9, 26).toDateString());
+    expect(sumRange(entries, start, end).minutesSaved).toBe(35);
+    expect(periodRange("year", now, -1).start.getFullYear()).toBe(2025);
+  });
+
+  it("projects the rest of the period from the last 28 days", () => {
+    const pace = recentPace(entries, now);
+    expect(pace.minutesPerDay).toBeCloseTo(130 / 28);
+    const { end } = periodRange("week", now);
+    expect(paceUntil(pace, end, now).minutesSaved).toBeCloseTo((130 / 28) * 2.3542, 1);
+  });
+
+  it("compares with the period before, at the same point while it is still running", () => {
+    // This week to Friday 3:30 p.m.: 95. Last week to Friday 3:30 p.m.: 15 + 20.
+    expect(changeFromPrevious(entries, "week", now)).toBe(171);
+    // Last week in full (35) against the week before (nothing).
+    expect(changeFromPrevious(entries, "week", now, -1)).toBeNull();
+    expect(changeFromPrevious(entries, "day", now)).toBeNull();
+  });
+
+  it("works out each plan's payback from the recent pace, counting only the gists it includes", () => {
+    // 28 gists in 28 days, $280 of time: about 30 a month worth $304.
+    const small = planPayback({ gists: 28, minutesPerDay: 20, moneyPerDay: 10 });
+    expect(small.plans[0]).toMatchObject({ name: "Pro", overLimit: false });
+    expect(small.plans[0].times).toBeCloseTo(30.4);
+    expect(small.plans[1].times).toBeCloseTo(15.2);
+    // About 1,520 gists a month: Pro counts 200 of them, Pro+ 1,000.
+    const big = planPayback({ gists: 1400, minutesPerDay: 500, moneyPerDay: 250 });
+    expect(big.plans[0].overLimit).toBe(true);
+    expect(big.plans[0].value).toBeCloseTo((250 * 30.4 * 200) / (1400 / 28 * 30.4));
+    expect(big.plans[1].value).toBeCloseTo((250 * 30.4 * 1000) / (1400 / 28 * 30.4));
+  });
+});

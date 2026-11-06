@@ -614,8 +614,24 @@ export function createApp({ db, summarizer, ingestFn = ingest, expandFn = expand
       byWeek.set(wk, [...(byWeek.get(wk) ?? []), it.s]);
       byKind.set(it.kind, [...(byKind.get(it.kind) ?? []), it.s]);
     }
+    // Hours in the person's time zone, so the app can show any day, week, month or year in local time.
+    const tz = validTimeZone(c.req.query("tz"));
+    const hourOf = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hourCycle: "h23" });
+    const hourly = new Map<string, { date: string; hour: number; kind: string; gists: number; minutesSaved: number; moneySaved: number }>();
+    for (const it of items) {
+      const parts = Object.fromEntries(hourOf.formatToParts(new Date(it.at)).map((x) => [x.type, x.value]));
+      const date = `${parts.year}-${parts.month}-${parts.day}`;
+      const hour = Number(parts.hour) % 24;
+      const key = `${date}|${hour}|${it.kind}`;
+      const h = hourly.get(key) ?? { date, hour, kind: it.kind, gists: 0, minutesSaved: 0, moneySaved: 0 };
+      h.gists += 1;
+      h.minutesSaved += it.s.minutesSaved;
+      h.moneySaved += it.s.moneySaved;
+      hourly.set(key, h);
+    }
     return c.json({
       totals: totalSavings(items.map((i) => i.s), settings.currency),
+      hourly: [...hourly.values()].map((h) => ({ ...h, minutesSaved: Math.round(h.minutesSaved * 10) / 10, moneySaved: Math.round(h.moneySaved * 100) / 100 })),
       byWeek: [...byWeek.entries()].slice(-12).map(([week, s]) => ({ week, ...totalSavings(s, settings.currency) })),
       byKind: [...byKind.entries()].map(([kind, s]) => ({ kind, ...totalSavings(s, settings.currency) })),
       assumptions: { readingWpm: 238, noteTakingFactor: 0.35, hourlyRate: settings.hourlyRate, currency: settings.currency, playbackSpeed: settings.playbackSpeed },
@@ -623,6 +639,17 @@ export function createApp({ db, summarizer, ingestFn = ingest, expandFn = expand
   });
 
   return app;
+}
+
+/** An IANA time zone the runtime knows, or UTC. */
+export function validTimeZone(tz: string | undefined): string {
+  if (!tz || tz.length > 64) return "UTC";
+  try {
+    new Intl.DateTimeFormat("en-CA", { timeZone: tz });
+    return tz;
+  } catch {
+    return "UTC";
+  }
 }
 
 /** Turns free text into a safe FTS5 prefix query. */
