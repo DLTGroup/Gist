@@ -1,18 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  bucketSavings, changeFromPrevious, formatMinutes, formatMoney, projectCurrent, recentPace, sumDays,
-  type Period, type PeriodBucket,
+  SLOT_OF, changeFromPrevious, entryTime, formatMinutes, formatMoney, paceUntil, periodRange, periodSlots, recentPace, sumRange,
+  type Period, type PeriodSlot,
 } from "@gist/core";
 import { api, type SavingsReport } from "../api.ts";
 
 const KIND = { youtube: "Videos", podcast: "Podcasts", web: "Articles", text: "Pasted text" } as Record<string, string>;
 
-const PERIODS: Record<Period, { name: string; unit: string; current: string; previous: string }> = {
-  day: { name: "Day", unit: "day", current: "today", previous: "yesterday" },
-  week: { name: "Week", unit: "week", current: "this week", previous: "last week" },
-  month: { name: "Month", unit: "month", current: "this month", previous: "last month" },
-  year: { name: "Year", unit: "year", current: "this year", previous: "last year" },
+const PERIODS: Record<Period, { name: string; slot: string; current: string; before: string }> = {
+  day: { name: "Day", slot: "hour", current: "today", before: "the day before" },
+  week: { name: "Week", slot: "day", current: "this week", before: "the week before" },
+  month: { name: "Month", slot: "day", current: "this month", before: "the month before" },
+  year: { name: "Year", slot: "month", current: "this year", before: "the year before" },
 };
 const PERIOD_KEY = "gist-savings-period";
 
@@ -26,28 +26,40 @@ function readPeriod(): Period {
   return "week";
 }
 
-/** Short bar label in two parts, so narrow screens can stack them. */
-function barLabel(b: PeriodBucket, p: Period): [string, string?] {
-  const d = b.start;
-  if (p === "day") return b.current ? ["Today"] : [String(d.getDate())];
-  if (p === "week") return b.current ? ["This", "wk"] : [d.toLocaleDateString("en-CA", { month: "short" }), String(d.getDate())];
-  if (p === "month") return [d.toLocaleDateString("en-CA", { month: "short" }), d.getMonth() === 0 ? `’${String(d.getFullYear()).slice(2)}` : undefined];
-  return [String(d.getFullYear())];
+const hourName = (h: number) => (h === 0 ? "12 a.m." : h === 12 ? "Noon" : h < 12 ? `${h} a.m.` : `${h - 12} p.m.`);
+
+function rangeName(start: Date, end: Date, p: Period, offset: number): string {
+  const last = new Date(end.getTime() - 1);
+  const md = (d: Date) => d.toLocaleDateString("en-CA", { month: "short", day: "numeric" });
+  if (p === "day") return `${offset === 0 ? "Today, " : offset === -1 ? "Yesterday, " : ""}${start.toLocaleDateString("en-CA", { weekday: "long", month: "long", day: "numeric" })}`;
+  if (p === "week") return `${md(start)} – ${start.getMonth() === last.getMonth() ? last.getDate() : md(last)}, ${last.getFullYear()}`;
+  if (p === "month") return start.toLocaleDateString("en-CA", { month: "long", year: "numeric" });
+  return String(start.getFullYear());
 }
 
-function longLabel(d: Date, p: Period): string {
-  if (p === "day") return d.toLocaleDateString("en-CA", { weekday: "long", month: "long", day: "numeric" });
-  if (p === "week") return `Week of ${d.toLocaleDateString("en-CA", { month: "long", day: "numeric" })}`;
-  if (p === "month") return d.toLocaleDateString("en-CA", { month: "long", year: "numeric" });
-  return String(d.getFullYear());
+/** The label under a bar, if it gets one. */
+function tick(s: PeriodSlot, p: Period, i: number): string[] | null {
+  const d = s.start;
+  if (p === "day") return i % 6 === 0 ? [hourName(i)] : null;
+  if (p === "week") return [d.toLocaleDateString("en-CA", { weekday: "short" }), String(d.getDate())];
+  if (p === "month") return d.getDate() === 1 || (d.getDate() % 5 === 0 && d.getDate() < 31) ? [String(d.getDate())] : null;
+  return [d.toLocaleDateString("en-CA", { month: "short" })];
+}
+
+function slotName(s: PeriodSlot, p: Period): string {
+  if (p === "day") return `${hourName(s.start.getHours())} to ${hourName((s.start.getHours() + 1) % 24)}`;
+  if (p === "year") return s.start.toLocaleDateString("en-CA", { month: "long", year: "numeric" });
+  return s.start.toLocaleDateString("en-CA", { weekday: "long", month: "long", day: "numeric" });
 }
 
 const compactMinutes = (m: number) => (m < 1 ? "" : m < 60 ? `${Math.round(m)}m` : `${(m / 60 >= 100 ? Math.round(m / 60) : (m / 60).toFixed(1).replace(/\.0$/, ""))}h`);
 const compactMoney = (n: number) => (n < 1 ? "" : n >= 1000 ? `$${(n / 1000).toFixed(1).replace(/\.0$/, "")}k` : `$${Math.round(n)}`);
+const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
 
 export function SavingsPage() {
   const [r, setR] = useState<SavingsReport | null>(null);
   const [period, setPeriod] = useState<Period>(readPeriod);
+  const [offset, setOffset] = useState(0);
   const [metric, setMetric] = useState<"time" | "money">("time");
   const [selected, setSelected] = useState<number | null>(null);
   useEffect(() => {
@@ -57,36 +69,38 @@ export function SavingsPage() {
   const view = useMemo(() => {
     if (!r) return null;
     const now = new Date();
-    const days = r.daily ?? [];
-    const buckets = bucketSavings(days, period, now);
-    const current = buckets[buckets.length - 1];
-    const pace = recentPace(days, now);
-    const projected = projectCurrent(current, pace, now);
-    const change = changeFromPrevious(days, period, now);
-    const from = buckets[0].start;
-    const window = sumDays(days, from, current.end);
-    const kinds = [...new Set(days.map((d) => d.kind))]
-      .map((kind) => ({ kind, ...sumDays(days, from, current.end, kind) }))
-      .filter((k) => k.gists > 0);
-    return { buckets, current, pace, projected, change, window, kinds };
-  }, [r, period]);
+    const entries = r.hourly ?? [];
+    const { start, end } = periodRange(period, now, offset);
+    const slots = periodSlots(entries, period, now, offset);
+    const total = sumRange(entries, start, end);
+    const pace = recentPace(entries, now);
+    const running = offset === 0;
+    // Outlined bars: the rest of a running week, month or year at the recent pace. Hours are too lumpy for that.
+    const ghosts = slots.map((s) => (running && period !== "day" && pace.gists > 0 && (s.future || s.current) ? paceUntil(pace, s.end, now, s.start) : null));
+    const ahead = running ? paceUntil(pace, end, now) : null;
+    const change = changeFromPrevious(entries, period, now, offset);
+    const kinds = [...new Set(entries.map((e) => e.kind))].map((kind) => ({ kind, ...sumRange(entries, start, end, kind) })).filter((k) => k.gists > 0);
+    const first = entries.length ? Math.min(...entries.map((e) => entryTime(e).getTime())) : now.getTime();
+    return { now, start, end, slots, total, pace, ghosts, ahead, change, kinds, canGoBack: start.getTime() > first, running };
+  }, [r, period, offset]);
 
   if (!r || !view) return <p className="muted">Loading…</p>;
   const t = r.totals;
   const P = PERIODS[period];
-  const { buckets, current, pace, projected, change, window, kinds } = view;
+  const { start, end, slots, total, pace, ghosts, ahead, change, kinds, canGoBack, running } = view;
   const value = (b: { minutesSaved: number; moneySaved: number }) => (metric === "time" ? b.minutesSaved : b.moneySaved);
   const show = (n: number) => (metric === "time" ? formatMinutes(n) : formatMoney(n, t.currency));
-  const projectedValue = value(projected);
-  const max = Math.max(1e-9, ...buckets.map(value), pace.gists ? projectedValue : 0);
-  const sel = buckets[selected ?? buckets.length - 1] ?? current;
-  const avg = buckets.reduce((s, b) => s + value(b), 0) / buckets.length;
-  const best = buckets.reduce((m, b) => (value(b) > value(m) ? b : m), buckets[0]);
-  const dense = buckets.length > 7;
-  const windowName = `last ${buckets.length} ${P.unit}s`;
+  const max = Math.max(1e-9, ...slots.map((s, i) => value(s) + (ghosts[i] ? value(ghosts[i]!) : 0)));
+  const elapsed = slots.filter((s) => !s.future);
+  const avg = elapsed.length ? elapsed.reduce((a, s) => a + value(s), 0) / elapsed.length : 0;
+  const best = slots.reduce((m, s) => (value(s) > value(m) ? s : m), slots[0]);
+  const sel = selected !== null ? slots[selected] ?? null : null;
+  const many = slots.length > 12;
+  const range = rangeName(start, end, period, offset);
 
   const choosePeriod = (p: Period) => {
     setPeriod(p);
+    setOffset(0);
     setSelected(null);
     try {
       localStorage.setItem(PERIOD_KEY, p);
@@ -94,20 +108,14 @@ export function SavingsPage() {
       // Not remembered; nothing else depends on it.
     }
   };
+  const step = (k: number) => {
+    setOffset((o) => Math.min(0, o + k));
+    setSelected(null);
+  };
 
   return (
     <div className="stack">
-      <div className="savings-head">
-        <h1>Your savings</h1>
-        <div className="seg" role="radiogroup" aria-label="Show savings by">
-          {(Object.keys(PERIODS) as Period[]).map((p) => (
-            <button key={p} type="button" role="radio" aria-checked={p === period} className={p === period ? "on" : ""} onClick={() => choosePeriod(p)}>
-              {PERIODS[p].name}
-            </button>
-          ))}
-        </div>
-      </div>
-
+      <h1>Your savings</h1>
       {t.gists === 0 ? (
         <div className="card">
           <p>Make your first gist to start tracking the time and money you save.</p>
@@ -115,73 +123,105 @@ export function SavingsPage() {
         </div>
       ) : (
         <>
-          <p className="muted">
-            All time: <strong>{formatMinutes(t.minutesSaved)}</strong> saved, worth <strong>{formatMoney(t.moneySaved, t.currency)}</strong>, across {t.gists} gist{t.gists === 1 ? "" : "s"}.
+          <p className="muted" style={{ margin: 0 }}>
+            All time: <strong>{formatMinutes(t.minutesSaved)}</strong> saved, worth <strong>{formatMoney(t.moneySaved, t.currency)}</strong>, across {plural(t.gists, "gist")}.
           </p>
 
+          <div className="savings-bar">
+            <div className="seg seg-lg" role="radiogroup" aria-label="Show savings for one">
+              {(Object.keys(PERIODS) as Period[]).map((p) => (
+                <button key={p} type="button" role="radio" aria-checked={p === period} className={p === period ? "on" : ""} onClick={() => choosePeriod(p)}>
+                  {PERIODS[p].name}
+                </button>
+              ))}
+            </div>
+            <div className="savings-nav">
+              <button type="button" className="btn-ghost nav-step" aria-label={`Previous ${period}`} disabled={!canGoBack} onClick={() => step(-1)}>‹</button>
+              <strong aria-live="polite">{range}</strong>
+              <button type="button" className="btn-ghost nav-step" aria-label={`Next ${period}`} disabled={running} onClick={() => step(1)}>›</button>
+              {!running && <button type="button" className="link" onClick={() => step(-offset)}>Back to {P.current}</button>}
+            </div>
+          </div>
+
           <div className="kpis">
-            <div className="card kpi"><span className="v">{formatMinutes(current.minutesSaved)}</span><span className="l">saved {P.current}</span></div>
-            <div className="card kpi"><span className="v">{formatMoney(current.moneySaved, t.currency)}</span><span className="l">value {P.current}</span></div>
-            <div className="card kpi"><span className="v">{current.gists}</span><span className="l">gist{current.gists === 1 ? "" : "s"} {P.current}</span></div>
+            <div className="card kpi"><span className="v">{formatMinutes(total.minutesSaved)}</span><span className="l">time saved</span></div>
+            <div className="card kpi"><span className="v">{formatMoney(total.moneySaved, t.currency)}</span><span className="l">value of that time</span></div>
+            <div className="card kpi"><span className="v">{total.gists}</span><span className="l">{total.gists === 1 ? "gist" : "gists"}</span></div>
             <div className="card kpi">
-              <span className="v">{change === null ? (current.minutesSaved > 0 ? "New" : "–") : `${change > 0 ? "+" : change < 0 ? "−" : ""}${Math.abs(change)}%`}</span>
-              <span className="l">
-                {change === null
-                  ? current.minutesSaved > 0 ? `nothing ${period === "day" ? P.previous : `by this point ${P.previous}`}` : `no gists yet ${P.current}`
-                  : period === "day" ? "vs yesterday" : `vs the same point ${P.previous}`}
-              </span>
+              <span className="v">{change === null ? (total.minutesSaved > 0 ? "New" : "–") : `${change > 0 ? "+" : change < 0 ? "−" : ""}${Math.abs(change)}%`}</span>
+              <span className="l">{change === null ? `nothing ${running ? "by this point in" : "in"} ${P.before}` : `vs ${P.before}${running ? ", same point" : ""}`}</span>
             </div>
           </div>
 
           <div className="card">
             <div className="savings-chart-head">
-              <h2>{metric === "time" ? "Time saved" : "Value saved"} by {P.unit}</h2>
+              <h2>{metric === "time" ? "Time saved" : "Value saved"} by {P.slot}</h2>
               <div className="seg seg-sm" role="radiogroup" aria-label="Measure">
                 <button type="button" role="radio" aria-checked={metric === "time"} className={metric === "time" ? "on" : ""} onClick={() => setMetric("time")}>Time</button>
                 <button type="button" role="radio" aria-checked={metric === "money"} className={metric === "money" ? "on" : ""} onClick={() => setMetric("money")}>Value</button>
               </div>
             </div>
-            <div className={`pbars${dense ? " dense" : ""}`} role="group" aria-label={`${metric === "time" ? "Time" : "Value"} saved per ${P.unit}, ${windowName}`}>
-              {buckets.map((b, i) => {
-                const v = value(b);
-                const ahead = b.current && pace.gists ? Math.max(0, projectedValue - v) : 0;
-                const [l1, l2] = barLabel(b, period);
+            <div className={`pbars${many ? " many" : ""}`} role="group" aria-label={`${metric === "time" ? "Time" : "Value"} saved by ${P.slot}, ${range}`}>
+              {slots.map((s, i) => {
+                const v = value(s);
+                const g = ghosts[i] ? value(ghosts[i]!) : 0;
+                const label = tick(s, period, i);
                 return (
                   <button
-                    key={b.start.toISOString()}
+                    key={s.start.getTime()}
                     type="button"
-                    className={b === sel ? "sel" : ""}
-                    aria-pressed={b === sel}
-                    title={`${longLabel(b.start, period)}: ${show(v)}${ahead ? `, heading for about ${show(projectedValue)}` : ""}`}
-                    onClick={() => setSelected(i)}
+                    className={`${s === sel ? "sel" : ""}${s.future ? " fut" : ""}`}
+                    aria-pressed={s === sel}
+                    title={`${slotName(s, period)}: ${show(v)}${g ? ` (about ${show(g)} more at your recent pace)` : ""}`}
+                    onClick={() => setSelected(s === sel ? null : i)}
                   >
-                    <small className="v">{metric === "time" ? compactMinutes(v) : compactMoney(v)}</small>
+                    {!many && <small className="v">{metric === "time" ? compactMinutes(v) : compactMoney(v)}</small>}
                     <span className="pstack">
-                      {ahead > 0 && <span className="proj" style={{ height: `${(ahead / max) * 86}%` }} />}
-                      <span className={`b${b.current ? " now" : ""}`} style={{ height: `${Math.max(v > 0 ? 3 : 1.5, (v / max) * 86)}%` }} />
+                      {g > 0 && <span className="proj" style={{ height: `${(g / max) * 86}%` }} />}
+                      <span className={`b${s.current ? " now" : ""}`} style={{ height: `${v > 0 ? Math.max(3, (v / max) * 86) : s.future ? 0 : 1.5}%` }} />
                     </span>
-                    <small className="lb"><span>{l1}</span>{l2 && <> <span>{l2}</span></>}</small>
+                    <small className="lb">
+                      {label && (
+                        <span className={`tk${period === "day" && i === 0 ? " first" : ""}`}>
+                          {label.map((x, j) => <span key={j}>{j ? " " : ""}{x}</span>)}
+                        </span>
+                      )}
+                    </small>
                   </button>
                 );
               })}
             </div>
             <div className="pdetail" aria-live="polite">
-              <strong>{longLabel(sel.start, period)}</strong>
-              <span>{formatMinutes(sel.minutesSaved)} saved · {formatMoney(sel.moneySaved, t.currency)} · {sel.gists} gist{sel.gists === 1 ? "" : "s"}</span>
-              {sel.current && pace.gists > 0 && (
-                <span className="muted">At your recent pace, {P.current} ends near {formatMinutes(projected.minutesSaved)} ({formatMoney(projected.moneySaved, t.currency)}).</span>
+              {sel ? (
+                <>
+                  <strong>{slotName(sel, period)}{period === "day" ? `, ${sel.start.toLocaleDateString("en-CA", { month: "short", day: "numeric" })}` : ""}</strong>
+                  <span>{formatMinutes(sel.minutesSaved)} saved · {formatMoney(sel.moneySaved, t.currency)} · {plural(sel.gists, "gist")}</span>
+                  <button type="button" className="link" onClick={() => setSelected(null)}>Show the whole {period}</button>
+                </>
+              ) : (
+                <>
+                  <strong>{range}</strong>
+                  <span>{formatMinutes(total.minutesSaved)} saved · {formatMoney(total.moneySaved, t.currency)} · {plural(total.gists, "gist")}</span>
+                  {ahead && pace.gists > 0 && (
+                    <span className="muted">
+                      At your recent pace, {P.current} ends near {formatMinutes(total.minutesSaved + ahead.minutesSaved)} ({formatMoney(total.moneySaved + ahead.moneySaved, t.currency)}).
+                    </span>
+                  )}
+                </>
               )}
             </div>
             <div className="pmeta">
-              <div><span>Average per {P.unit}</span><b>{show(avg)}</b></div>
-              <div><span>Best {P.unit}</span><b>{value(best) > 0 ? show(value(best)) : "–"}</b><small>{value(best) > 0 ? longLabel(best.start, period) : ""}</small></div>
+              <div><span>Average per {P.slot}</span><b>{show(avg)}</b><small>{running ? "so far" : ""}</small></div>
+              <div><span>Best {P.slot}</span><b>{value(best) > 0 ? show(value(best)) : "–"}</b><small>{value(best) > 0 ? slotName(best, period) : ""}</small></div>
               <div><span>At your recent pace</span><b>{formatMinutes(pace.minutesPerDay * 365)}</b><small>a year, worth {formatMoney(pace.moneyPerDay * 365, t.currency)}</small></div>
             </div>
-            {pace.gists > 0 && <p className="muted small">The outlined top of the current bar is where {P.current} is heading at your pace over the last 28 days.</p>}
+            <p className="muted small">
+              {ghosts.some(Boolean) ? `Outlined bars are where the rest of ${P.current} is heading at your pace over the last 28 days. ` : ""}Select a bar for its details.
+            </p>
           </div>
 
           <div className="card">
-            <h2>By source, {windowName}</h2>
+            <h2>By source</h2>
             {kinds.length ? (
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
@@ -199,9 +239,8 @@ export function SavingsPage() {
                 </tbody>
               </table>
             ) : (
-              <p className="muted">No gists in the {windowName}.</p>
+              <p className="muted">No gists in this {period}.</p>
             )}
-            {window.gists > 0 && <p className="muted small">{window.gists} gist{window.gists === 1 ? "" : "s"} in the {windowName}, saving {formatMinutes(window.minutesSaved)}.</p>}
           </div>
 
           <div className="card">

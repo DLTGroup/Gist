@@ -1,36 +1,47 @@
 /**
- * Savings by day, week, month or year. The server groups savings by calendar day in the
- * person's time zone; these helpers roll those days up into periods on the device, in local time.
+ * Savings for one day, week, month or year. The server groups savings by hour in the person's
+ * time zone; these helpers pick out one period and split it into bars on the device, in local
+ * time: a day into hours, a week or month into days, a year into months.
  */
 
 export type Period = "day" | "week" | "month" | "year";
+type Unit = Period | "hour";
 
-/** One calendar day of savings for one source kind, as the savings report returns it. */
-export interface DailySavings {
+/** One hour of savings for one source kind, as the savings report returns it. */
+export interface HourlySavings {
   /** YYYY-MM-DD in the person's time zone. */
   date: string;
+  /** 0–23 in the person's time zone. */
+  hour: number;
   kind: string;
   gists: number;
   minutesSaved: number;
   moneySaved: number;
 }
 
-export interface PeriodBucket {
-  start: Date;
-  end: Date;
+export interface SavingsSum {
   gists: number;
   minutesSaved: number;
   moneySaved: number;
+}
+
+export interface PeriodSlot extends SavingsSum {
+  start: Date;
+  end: Date;
+  /** The slot hasn't started yet. */
+  future: boolean;
+  /** The slot is happening now. */
   current: boolean;
 }
 
-/** How many bars each period shows by default. Years grow from the first gist (see bucketSavings). */
-export const PERIOD_BARS: Record<Period, number> = { day: 14, week: 12, month: 12, year: 3 };
+/** What each period is split into. */
+export const SLOT_OF: Record<Period, Unit> = { day: "hour", week: "day", month: "day", year: "month" };
 
 const DAY_MS = 864e5;
 
 /** Start of the period containing `d`, in local time. Weeks start on Monday. */
-export function periodStart(d: Date, p: Period): Date {
+export function periodStart(d: Date, p: Unit): Date {
+  if (p === "hour") return new Date(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours());
   const s = new Date(d.getFullYear(), d.getMonth(), d.getDate());
   if (p === "week") s.setDate(s.getDate() - ((s.getDay() + 6) % 7));
   if (p === "month") s.setDate(1);
@@ -38,26 +49,33 @@ export function periodStart(d: Date, p: Period): Date {
   return s;
 }
 
-export function addPeriods(d: Date, p: Period, k: number): Date {
+export function addPeriods(d: Date, p: Unit, k: number): Date {
   const s = new Date(d);
-  if (p === "day") s.setDate(s.getDate() + k);
+  if (p === "hour") s.setHours(s.getHours() + k);
+  else if (p === "day") s.setDate(s.getDate() + k);
   else if (p === "week") s.setDate(s.getDate() + 7 * k);
   else if (p === "month") s.setMonth(s.getMonth() + k);
   else s.setFullYear(s.getFullYear() + k);
   return s;
 }
 
-/** Parses YYYY-MM-DD as local midnight. */
-export function localDay(date: string): Date {
-  const [y, m, d] = date.split("-").map(Number);
-  return new Date(y, m - 1, d);
+/** The local time an hourly entry starts at. */
+export function entryTime(x: Pick<HourlySavings, "date" | "hour">): Date {
+  const [y, m, d] = x.date.split("-").map(Number);
+  return new Date(y, m - 1, d, x.hour);
+}
+
+/** The period `offset` steps from the one containing `now` (0 = current, −1 = the one before). */
+export function periodRange(p: Period, now = new Date(), offset = 0): { start: Date; end: Date } {
+  const start = addPeriods(periodStart(now, p), p, offset);
+  return { start, end: addPeriods(start, p, 1) };
 }
 
 /** The savings in [from, to), optionally for one source kind. */
-export function sumDays(days: DailySavings[], from: Date, to: Date, kind?: string) {
+export function sumRange(entries: HourlySavings[], from: Date, to: Date, kind?: string): SavingsSum {
   const t = { gists: 0, minutesSaved: 0, moneySaved: 0 };
-  for (const x of days) {
-    const at = localDay(x.date).getTime();
+  for (const x of entries) {
+    const at = entryTime(x).getTime();
     if (at < from.getTime() || at >= to.getTime() || (kind && x.kind !== kind)) continue;
     t.gists += x.gists;
     t.minutesSaved += x.minutesSaved;
@@ -66,49 +84,40 @@ export function sumDays(days: DailySavings[], from: Date, to: Date, kind?: strin
   return t;
 }
 
-/** The last `n` periods up to and including the current one, oldest first. */
-export function bucketSavings(days: DailySavings[], p: Period, now = new Date(), n?: number): PeriodBucket[] {
-  let count = n ?? PERIOD_BARS[p];
-  if (p === "year" && n === undefined && days.length) {
-    // From the first gist's year: at least 3 bars, at most 10.
-    const first = Math.min(...days.map((x) => localDay(x.date).getFullYear()));
-    count = Math.min(10, Math.max(PERIOD_BARS.year, now.getFullYear() - first + 1));
+/** The bars for one period: its hours, days or months, in order. */
+export function periodSlots(entries: HourlySavings[], p: Period, now = new Date(), offset = 0): PeriodSlot[] {
+  const { start, end } = periodRange(p, now, offset);
+  const unit = SLOT_OF[p];
+  const slots: PeriodSlot[] = [];
+  for (let a = start; a < end; a = addPeriods(a, unit, 1)) {
+    const b = addPeriods(a, unit, 1);
+    slots.push({ start: a, end: b, ...sumRange(entries, a, b), future: a > now, current: a <= now && now < b });
   }
-  const cur = periodStart(now, p);
-  const out: PeriodBucket[] = [];
-  for (let i = count - 1; i >= 0; i--) {
-    const start = addPeriods(cur, p, -i);
-    const end = addPeriods(start, p, 1);
-    out.push({ start, end, ...sumDays(days, start, end), current: i === 0 });
-  }
-  return out;
+  return slots;
 }
 
-/** Savings per day over the last 28 days, including today. Used for pace and projections. */
-export function recentPace(days: DailySavings[], now = new Date()) {
-  const today = periodStart(now, "day");
-  const t = sumDays(days, addPeriods(today, "day", -27), addPeriods(today, "day", 1));
+/** Savings per day over the last 28 days, up to now. Used for pace and projections. */
+export function recentPace(entries: HourlySavings[], now = new Date()) {
+  const t = sumRange(entries, new Date(now.getTime() - 28 * DAY_MS), new Date(now.getTime() + 1));
   return { gists: t.gists, minutesPerDay: t.minutesSaved / 28, moneyPerDay: t.moneySaved / 28 };
 }
 
-/** Where the current period is heading: what's saved so far plus the recent pace for the days left. */
-export function projectCurrent(bucket: PeriodBucket, pace: ReturnType<typeof recentPace>, now = new Date()) {
-  const daysLeft = Math.max(0, (bucket.end.getTime() - now.getTime()) / DAY_MS);
-  return { minutesSaved: bucket.minutesSaved + pace.minutesPerDay * daysLeft, moneySaved: bucket.moneySaved + pace.moneyPerDay * daysLeft };
+/** What the recent pace adds between now (or `from`, if later) and `end`. */
+export function paceUntil(pace: ReturnType<typeof recentPace>, end: Date, now = new Date(), from = now): SavingsSum {
+  const days = Math.max(0, (end.getTime() - Math.max(from.getTime(), now.getTime())) / DAY_MS);
+  return { gists: 0, minutesSaved: pace.minutesPerDay * days, moneySaved: pace.moneyPerDay * days };
 }
 
 /**
- * The current period against the previous one at the same point. With daily data, "the same point"
- * means the same number of whole days (today included); a day is compared with all of yesterday.
- * Returns null when the previous period had nothing by then.
+ * The shown period against the one before. While the shown period is still running, the one
+ * before counts only up to the same point; otherwise all of it. Null when the one before had nothing.
  */
-export function changeFromPrevious(days: DailySavings[], p: Period, now = new Date()): number | null {
-  const cur = periodStart(now, p);
-  const today = periodStart(now, "day");
-  const elapsedDays = Math.round((today.getTime() - cur.getTime()) / DAY_MS) + 1;
-  const prevStart = addPeriods(cur, p, -1);
-  const prevEnd = p === "day" ? cur : new Date(Math.min(addPeriods(prevStart, "day", elapsedDays).getTime(), cur.getTime()));
-  const before = sumDays(days, prevStart, prevEnd).minutesSaved;
-  const nowSaved = sumDays(days, cur, addPeriods(today, "day", 1)).minutesSaved;
-  return before > 0 ? Math.round((nowSaved / before - 1) * 100) : null;
+export function changeFromPrevious(entries: HourlySavings[], p: Period, now = new Date(), offset = 0): number | null {
+  const { start, end } = periodRange(p, now, offset);
+  const prevStart = addPeriods(start, p, -1);
+  const running = offset === 0;
+  const prevEnd = running ? new Date(prevStart.getTime() + (now.getTime() - start.getTime())) : start;
+  const before = sumRange(entries, prevStart, prevEnd).minutesSaved;
+  const shown = sumRange(entries, start, running ? new Date(now.getTime() + 1) : end).minutesSaved;
+  return before > 0 ? Math.round((shown / before - 1) * 100) : null;
 }

@@ -1,4 +1,4 @@
-import type { DailySavings, ExportTarget, ExtractionTemplate, Folder, Gist, UserSettings } from "@gist/core";
+import type { HourlySavings, ExportTarget, ExtractionTemplate, Folder, Gist, UserSettings } from "@gist/core";
 import type { AuthenticationResponseJSON, PublicKeyCredentialCreationOptionsJSON, PublicKeyCredentialRequestOptionsJSON, RegistrationResponseJSON } from "@simplewebauthn/browser";
 
 declare global {
@@ -105,8 +105,8 @@ export interface EmailVerifyResult { token: string; isNew: boolean; recovery: bo
 
 export interface SavingsReport {
   totals: Totals;
-  /** Savings per calendar day and source kind, in the time zone the app asked for. */
-  daily: DailySavings[];
+  /** Savings per hour and source kind, in the time zone the app asked for. */
+  hourly: HourlySavings[];
   byWeek: (Totals & { week: string })[];
   byKind: (Totals & { kind: string })[];
   assumptions: { readingWpm: number; noteTakingFactor: number; hourlyRate: number; currency: string; playbackSpeed: number };

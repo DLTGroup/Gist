@@ -73,11 +73,13 @@ describe("API end to end", () => {
     expect(sav.json.totals.gists).toBe(2);
     expect(sav.json.totals.minutesSaved).toBeGreaterThan(20);
     expect(sav.json.assumptions.hourlyRate).toBe(60);
-    const kinds = sav.json.daily.map((d: { kind: string }) => d.kind).sort();
+    const kinds = sav.json.hourly.map((d: { kind: string }) => d.kind).sort();
     expect(kinds).toEqual(["text", "youtube"]);
-    expect(sav.json.daily.reduce((a: number, d: { gists: number }) => a + d.gists, 0)).toBe(2);
+    expect(sav.json.hourly.reduce((a: number, d: { gists: number }) => a + d.gists, 0)).toBe(2);
     const local = await call("GET", "/api/savings?tz=America/Toronto");
-    expect(local.json.daily[0].date).toBe(new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto" }).format(new Date()));
+    const parts = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hourCycle: "h23" }).formatToParts(new Date()).map((x) => [x.type, x.value]));
+    expect(local.json.hourly[0].date).toBe(`${parts.year}-${parts.month}-${parts.day}`);
+    expect(local.json.hourly[0].hour).toBe(Number(parts.hour));
     expect((await call("GET", "/api/savings?tz=Not/AZone")).status).toBe(200);
 
     const me = await call("PATCH", "/api/settings", { notionToken: "secret_abcdef1234" });
