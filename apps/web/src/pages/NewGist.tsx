@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import type { ExtractionTemplate, Folder } from "@gist/core";
-import { PLATFORM_LABEL, detectCollection, detectSourceKind, extractLinks } from "@gist/core";
+import { DEFAULT_TEMPLATE_ID, PLATFORM_LABEL, detectCollection, detectSourceKind, extractLinks } from "@gist/core";
 import { api } from "../api.ts";
 import { useSession } from "../main.tsx";
 import { SavedListPicker, type PickedList } from "../components/SavedListPicker.tsx";
@@ -26,7 +26,7 @@ export function NewGist() {
   const [title, setTitle] = useState("");
   const [focus, setFocus] = useState("");
   const [templates, setTemplates] = useState<ExtractionTemplate[]>([]);
-  const [templateId, setTemplateId] = useState(user?.settings.defaultTemplateId ?? "takeaways-actions");
+  const [templateId, setTemplateId] = useState(user?.settings.defaultTemplateId ?? DEFAULT_TEMPLATE_ID);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [folderId, setFolderId] = useState<string>("");
   const [error, setError] = useState<string | null>(null);

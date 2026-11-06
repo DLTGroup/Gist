@@ -3,7 +3,7 @@ import { Alert, Pressable, ScrollView, Text, View } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { router, useLocalSearchParams } from "expo-router";
 import type { ExtractionTemplate } from "@gist/core";
-import { detectCollection, detectSourceKind, extractLinks } from "@gist/core";
+import { DEFAULT_TEMPLATE_ID, detectCollection, detectSourceKind, extractLinks } from "@gist/core";
 import { api } from "../../lib/api";
 import { handledLoginRequired } from "../../lib/signinPrompt";
 import { useSession } from "../../lib/session";
@@ -19,7 +19,7 @@ export default function NewGist() {
   const [input, setInput] = useState(params.url ?? "");
   const [focus, setFocus] = useState("");
   const [templates, setTemplates] = useState<ExtractionTemplate[]>([]);
-  const [templateId, setTemplateId] = useState(user?.settings.defaultTemplateId ?? "takeaways-actions");
+  const [templateId, setTemplateId] = useState(user?.settings.defaultTemplateId ?? DEFAULT_TEMPLATE_ID);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 

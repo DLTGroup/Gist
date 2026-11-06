@@ -69,6 +69,7 @@ export function Templates() {
                 <option value="brief">Brief (about 150 words)</option>
                 <option value="standard">Standard (about 400 words)</option>
                 <option value="detailed">Detailed (up to 900 words)</option>
+                <option value="exhaustive">Exhaustive (no length limit)</option>
               </select>
             </div>
             <div className="field" style={{ flex: 1, minWidth: 160 }}>
@@ -114,7 +115,7 @@ export function Templates() {
             </div>
           </div>
         ))}
-        <button onClick={() => setEditing({ ...editing, sections: [...editing.sections!, { id: `s${Date.now()}`, heading: "", instruction: "", format: "bullets" }] })}>＋ Add section</button>
+        <button disabled={editing.sections!.length >= 20} onClick={() => setEditing({ ...editing, sections: [...editing.sections!, { id: `s${Date.now()}`, heading: "", instruction: "", format: "bullets" }] })}>＋ Add section</button>
         {error && <p className="error">{error}</p>}
         <div className="row">
           <button className="btn-primary" onClick={save}>Save template</button>

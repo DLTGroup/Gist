@@ -47,7 +47,7 @@ export class GeminiVideoSummarizer implements Summarizer {
     } catch {
       throw new SummarizeError("The video summarizer sent an unreadable reply. Please try again.");
     }
-    if (body.status === "incomplete") throw new SummarizeError("The summary ran too long. Try a shorter template.", 422);
+    if (body.status === "incomplete") throw new SummarizeError("The summary ran past the length limit for one gist. Try a shorter template for this source.", 422);
     if (body.status === "failed" || body.status === "cancelled") throw new SummarizeError("The video couldn't be summarized. Please try again.", 502);
     const text = (body.steps ?? [])
       .filter((s: { type?: string }) => s.type === "model_output")

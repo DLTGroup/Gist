@@ -92,3 +92,13 @@ describe("model router", () => {
     await expect(r.summarize(src, template)).rejects.toMatchObject({ status: 422 });
   });
 });
+
+describe("full extraction", () => {
+  const full = BUILT_IN_TEMPLATES.find((t) => t.id === "full-extraction")!;
+  it("the demo summarizer fills every section, writing None. where it runs out", async () => {
+    const r = await new DemoSummarizer().summarize(src, full);
+    expect(r.summary.sections).toHaveLength(19);
+    for (const s of r.summary.sections) expect(s.paragraph || s.items.length).toBeTruthy();
+    expect(r.summary.sections.some((s) => s.paragraph === "None.")).toBe(true);
+  });
+});

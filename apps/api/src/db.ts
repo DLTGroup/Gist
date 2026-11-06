@@ -1,7 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
 import { randomUUID } from "node:crypto";
 import type { ExtractionTemplate, Folder, Gist, UserSettings } from "@gist/core";
-import { DEFAULT_ASSUMPTIONS, summaryText } from "@gist/core";
+import { DEFAULT_ASSUMPTIONS, DEFAULT_TEMPLATE_ID, summaryText } from "@gist/core";
 
 export type DB = DatabaseSync;
 
@@ -9,7 +9,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   hourlyRate: DEFAULT_ASSUMPTIONS.hourlyRate,
   currency: DEFAULT_ASSUMPTIONS.currency,
   playbackSpeed: 1,
-  defaultTemplateId: "takeaways-actions",
+  defaultTemplateId: DEFAULT_TEMPLATE_ID,
   autoExport: null,
   obsidianVault: null,
   obsidianFolder: "Gist",
