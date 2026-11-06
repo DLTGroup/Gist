@@ -29,8 +29,7 @@ export function Landing() {
             <Link className="btn btn-primary" to="/app/new">Open {BRAND.name}</Link>
           ) : (
             <>
-              <Link className="btn btn-ghost" to="/signin">Sign in</Link>
-              <Link className="btn btn-primary" to="/signup">Create free account</Link>
+              <Link className="btn btn-primary" to="/signin">Sign in</Link>
             </>
           )}
         </div>

@@ -28,10 +28,8 @@ export function LoginPrompt() {
         <h2 id="prompt-title">Free account needed</h2>
         <p className="muted">{message}</p>
         {!USES_BEARER && <a className="btn btn-primary auth-wide" href={api.googleStartUrl(next)}>Continue with Google</a>}
-        <Link className="btn auth-wide" to={`/signup?next=${encodeURIComponent(next)}`} onClick={() => setMessage(null)}>Use my email</Link>
-        <p className="muted small" style={{ textAlign: "center" }}>
-          Already have one? <Link to={`/signin?next=${encodeURIComponent(next)}`} onClick={() => setMessage(null)}>Sign in</Link>
-        </p>
+        <Link className="btn auth-wide" to={`/signin?next=${encodeURIComponent(next)}`} onClick={() => setMessage(null)}>Use my email or a passkey</Link>
+        <p className="muted small" style={{ textAlign: "center" }}>Already have an account? Either option signs you in.</p>
         <button className="btn-ghost auth-wide" onClick={() => setMessage(null)}>Not now</button>
       </div>
     </div>

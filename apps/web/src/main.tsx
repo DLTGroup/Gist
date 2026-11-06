@@ -82,7 +82,7 @@ function RequireAuth({ children, guestOk = false }: { children: React.ReactNode;
   if (loading || needsGuest) return <div className="main muted">Loading…</div>;
   if (!user) return <Navigate to={`/signin?next=${next}`} replace />;
   if (user.restricted) return <Navigate to={`/signin?next=${next}`} replace />;
-  if (user.isGuest && !guestOk) return <Navigate to={`/signup?next=${next}`} replace />;
+  if (user.isGuest && !guestOk) return <Navigate to={`/signin?next=${next}`} replace />;
   return <>{children}</>;
 }
 
@@ -102,8 +102,8 @@ createRoot(document.getElementById("root")!).render(
         <DesktopBridge />
         <Routes>
           <Route path="/" element={<Landing />} />
-          <Route path="/signin" element={<AuthPage mode="signin" />} />
-          <Route path="/signup" element={<AuthPage mode="signup" />} />
+          <Route path="/signin" element={<AuthPage />} />
+          <Route path="/signup" element={<AuthPage />} />
           <Route
             path="/app"
             element={

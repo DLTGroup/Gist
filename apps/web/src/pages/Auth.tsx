@@ -12,14 +12,13 @@ type Step = "start" | "code" | "passkey";
  * Google, use a passkey (Face ID, fingerprint or device PIN), or get a 6-digit code by email and
  * are then offered a passkey for next time.
  */
-export function AuthPage({ mode }: { mode: "signin" | "signup" }) {
+export function AuthPage() {
   const { user, signIn, signOut } = useSession();
   const nav = useNavigate();
   const [params] = useSearchParams();
   const next = params.get("next")?.startsWith("/app") ? params.get("next")! : "/app/new";
   const [step, setStep] = useState<Step>("start");
   const [email, setEmail] = useState("");
-  const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [attemptId, setAttemptId] = useState<string | null>(null);
   const [recovery, setRecovery] = useState(false);
@@ -92,7 +91,7 @@ export function AuthPage({ mode }: { mode: "signin" | "signup" }) {
   const verify = (e: React.FormEvent) => {
     e.preventDefault();
     return run("code", async () => {
-      const r = await api.emailVerify(code, attemptId, name.trim() || undefined);
+      const r = await api.emailVerify(code, attemptId);
       await signIn(r.token);
       setRecovery(r.recovery);
       setScoped(r.scoped);
@@ -100,8 +99,6 @@ export function AuthPage({ mode }: { mode: "signin" | "signup" }) {
       else nav(next, { replace: true });
     });
   };
-
-  const heading = mode === "signup" ? "Create your free account" : "Sign in to Gist";
 
   return (
     <div className="auth">
@@ -111,12 +108,11 @@ export function AuthPage({ mode }: { mode: "signin" | "signup" }) {
 
       {step === "start" && (
         <div className="card auth-card">
-          <h1>{heading}</h1>
-          {guest ? (
-            <p className="muted small">The gists you've made come with you.</p>
-          ) : (
-            <p className="muted small">No password needed.</p>
-          )}
+          {/* One door: with no passwords, the same steps sign people in or create their account. */}
+          <h1>Welcome to Gist</h1>
+          <p className="muted small">
+            Sign in, or create a free account if you're new. No password needed.{guest ? " The gists you've made come with you." : ""}
+          </p>
           {!USES_BEARER && (
             <a className="btn auth-google" href={api.googleStartUrl(next)}>
               <GoogleG /> Continue with Google
@@ -129,12 +125,6 @@ export function AuthPage({ mode }: { mode: "signin" | "signup" }) {
           )}
           <div className="auth-or"><span>or use your email</span></div>
           <form onSubmit={sendCode}>
-            {mode === "signup" && (
-              <div className="field">
-                <label htmlFor="name">Name <span className="hint">(optional)</span></label>
-                <input id="name" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
-              </div>
-            )}
             <div className="field">
               <label htmlFor="email">Email</label>
               {/* "webauthn" lets the browser offer saved passkeys right in this field. */}
@@ -143,9 +133,6 @@ export function AuthPage({ mode }: { mode: "signin" | "signup" }) {
             {error && <p className="error" role="alert">{error}</p>}
             <button className="btn-primary auth-wide" disabled={!!busy}>{busy === "email" ? "Sending…" : "Email me a code"}</button>
           </form>
-          <p className="muted small auth-switch">
-            {mode === "signup" ? <>Have an account? <Link to={`/signin?next=${encodeURIComponent(next)}`}>Sign in</Link></> : <>New here? <Link to={`/signup?next=${encodeURIComponent(next)}`}>Create an account</Link></>}
-          </p>
           {!guest && (
             <p className="muted small auth-switch">
               Just looking? <Link to="/app/new">Make a gist without an account</Link>
@@ -203,7 +190,7 @@ export function AuthPage({ mode }: { mode: "signin" | "signup" }) {
               disabled={!!busy}
               onClick={() =>
                 run("create", async () => {
-                  if (await createPasskey(user?.email ?? (email.trim() || null), user?.name ?? (name.trim() || null))) {
+                  if (await createPasskey(user?.email ?? (email.trim() || null), user?.name ?? null)) {
                     await signIn();
                     nav(next, { replace: true });
                   }

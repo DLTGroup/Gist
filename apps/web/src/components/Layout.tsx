@@ -60,8 +60,7 @@ export function Layout() {
               You're trying Gist without an account.{" "}
               {user.guestGistsLeft ? "Make your first gist, then share it with anyone." : "Create a free account to make more, send gists to your notes app and keep them."}
             </span>
-            <Link to={`/signin?next=${next}`}>Sign in</Link>
-            <Link className="btn btn-primary" to={`/signup?next=${next}`}>Create free account</Link>
+            <Link className="btn btn-primary" to={`/signin?next=${next}`}>Sign in or create account</Link>
           </div>
         )}
         <Outlet />
