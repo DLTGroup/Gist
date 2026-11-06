@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { detectCollection, extractLinks, type IngestedSource } from "@gist/core";
+import { member } from "./helpers.ts";
 import { openDb } from "../src/db.ts";
 import { createApp } from "../src/app.ts";
 import { DemoSummarizer } from "../src/summarize.ts";
@@ -65,7 +66,7 @@ describe("bulk import API", () => {
       const r = await app.request(path, { method, headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: body ? JSON.stringify(body) : undefined });
       return { status: r.status, json: r.headers.get("content-type")?.includes("json") ? await r.json() : null, text: r.headers.get("content-type")?.includes("json") ? null : await r.text() };
     };
-    const token = (await call("POST", "/api/auth/signup", { email: "p@x.ca", password: "password1" })).json.token;
+    const token = member(db, "p@x.ca");
     const r = await call("POST", "/api/imports?wait=1", { url: "https://www.youtube.com/playlist?list=PLx", templateId: "study-notes" }, token);
     expect(r.status).toBe(202);
     const imp = r.json.import;

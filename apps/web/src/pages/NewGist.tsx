@@ -17,7 +17,7 @@ const COLLECTION_LABEL = {
 const KIND_LABEL = { youtube: "▶ YouTube video", podcast: "🎙 Podcast episode", web: "📰 Article or blog post", text: "📝 Pasted text" } as const;
 
 export function NewGist() {
-  const { user } = useSession();
+  const { user, refresh } = useSession();
   const nav = useNavigate();
   const [params] = useSearchParams();
   // Share targets (PWA, desktop) may pass the link in url, text or title.
@@ -71,6 +71,7 @@ export function NewGist() {
         focus: focus.trim() || undefined,
         folderId: folderId || null,
       });
+      if (user?.isGuest) void refresh(); // updates the guest's remaining free gists
       nav(`/app/g/${gist.id}`);
     } catch (err) {
       setError((err as Error).message);
@@ -95,7 +96,7 @@ export function NewGist() {
         />
         {kind && !importMode && !collection && <span className="pill source-chip" style={{ marginTop: "0.5rem" }}>{KIND_LABEL[kind]}</span>}
       </div>
-      {!input.trim() && <SavedListPicker picked={picked} onPick={setPicked} />}
+      {!input.trim() && !user?.isGuest && <SavedListPicker picked={picked} onPick={setPicked} />}
       {(picked || collection || bulkLinks) && (
         <div className="card" style={{ background: "var(--accent-soft)", borderColor: "transparent", boxShadow: "none" }}>
           <strong>{picked ? `${PLATFORM_LABEL[picked.provider]}: ${picked.list.title}` : bulkLinks ? `${links.length} links found` : COLLECTION_LABEL[collection!.kind]}</strong>

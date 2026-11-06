@@ -25,12 +25,11 @@ export function Landing() {
           <img src={`${import.meta.env.BASE_URL}icon.svg`} alt="" width={28} height={28} /> <Wordmark />
         </div>
         <div className="row">
-          {user ? (
+          {user && !user.isGuest ? (
             <Link className="btn btn-primary" to="/app/new">Open {BRAND.name}</Link>
           ) : (
             <>
-              <Link className="btn btn-ghost" to="/signin">Sign in</Link>
-              <Link className="btn btn-primary" to="/signup">Start free</Link>
+              <Link className="btn btn-primary" to="/signin">Sign in</Link>
             </>
           )}
         </div>
@@ -45,8 +44,8 @@ export function Landing() {
             sends it to your notes app. Then it shows you the time and money you just saved.
           </p>
           <div className="row" style={{ marginTop: "1.2rem" }}>
-            <Link className="btn btn-primary" to={user ? "/app/new" : "/signup"}>Make your first gist</Link>
-            <span className="muted small">Web, desktop, Android and iOS</span>
+            <Link className="btn btn-primary" to="/app/new">Make your first gist</Link>
+            <span className="muted small">No account needed to try it</span>
           </div>
         </div>
         <div className="card calc">

@@ -3,9 +3,12 @@ import type { ExportTarget, ExtractionTemplate, UserSettings } from "@gist/core"
 import { api } from "../api.ts";
 import { useSession } from "../main.tsx";
 import { ConnectedAccounts } from "../components/ConnectedAccounts.tsx";
+import { AccountSecurity } from "../components/AccountSecurity.tsx";
+import { useNavigate } from "react-router-dom";
 
 export function SettingsPage() {
   const { user, setUser, signOut } = useSession();
+  const nav = useNavigate();
   const [s, setS] = useState<UserSettings>(user!.settings);
   const [templates, setTemplates] = useState<ExtractionTemplate[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
@@ -32,6 +35,8 @@ export function SettingsPage() {
   return (
     <form className="stack" onSubmit={save}>
       <h1>Settings</h1>
+
+      <AccountSecurity />
 
       <ConnectedAccounts />
 
@@ -123,7 +128,7 @@ export function SettingsPage() {
         {msg && <span className="pill pill-accent">{msg}</span>}
         <span className="spacer" />
         <span className="muted small">{user?.email}</span>
-        <button type="button" className="btn-ghost" onClick={signOut}>Sign out</button>
+        <button type="button" className="btn-ghost" onClick={() => signOut().then(() => nav("/"))}>Sign out</button>
       </div>
     </form>
   );

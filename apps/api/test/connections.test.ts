@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { IngestedSource } from "@gist/core";
+import { member } from "./helpers.ts";
 import { openDb } from "../src/db.ts";
 import { createApp } from "../src/app.ts";
 import { DemoSummarizer } from "../src/summarize.ts";
@@ -85,7 +86,7 @@ describe("connected accounts", () => {
 
   it("connects YouTube, lists saved playlists and imports one", async () => {
     const s = setup();
-    s.setToken((await s.call("POST", "/api/auth/signup", { email: "c@x.ca", password: "password1" })).json.token);
+    s.setToken(member(s.db, "c@x.ca"));
     expect((await s.call("GET", "/api/connections")).json.connections).toEqual([
       expect.objectContaining({ provider: "youtube", available: true, connected: false }),
       expect.objectContaining({ provider: "spotify", available: true, connected: false }),
@@ -116,7 +117,7 @@ describe("connected accounts", () => {
 
   it("connects Spotify, offers saved episodes and own playlists, and skips music", async () => {
     const s = setup();
-    s.setToken((await s.call("POST", "/api/auth/signup", { email: "s@x.ca", password: "password1" })).json.token);
+    s.setToken(member(s.db, "s@x.ca"));
     await connect(s, "spotify");
     const lists = (await s.call("GET", "/api/connections/spotify/lists")).json.lists;
     expect(lists.map((l: { id: string }) => l.id)).toEqual(["saved-episodes", "MINE"]);
@@ -131,7 +132,7 @@ describe("connected accounts", () => {
 
   it("rejects a forged or reused sign-in state and refreshes expired tokens", async () => {
     const s = setup();
-    s.setToken((await s.call("POST", "/api/auth/signup", { email: "f@x.ca", password: "password1" })).json.token);
+    s.setToken(member(s.db, "f@x.ca"));
     const forged = await s.call("GET", "/api/connections/youtube/callback?code=abc&state=nope");
     expect(forged.headers.get("location")).toContain("connect_error=");
     expect((await s.call("GET", "/api/connections")).json.connections[0].connected).toBe(false);
@@ -152,8 +153,7 @@ describe("connected accounts", () => {
   it("reports connections as unavailable until the server is configured", async () => {
     const db = openDb(":memory:");
     const app = createApp({ db, summarizer: new DemoSummarizer(), connections: new Connections(db, fetch, {}) });
-    const su = await app.request("/api/auth/signup", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: "u@x.ca", password: "password1" }) });
-    const token = ((await su.json()) as { token: string }).token;
+    const token = member(db, "u@x.ca");
     const r = await app.request("/api/connections/youtube/start", { method: "POST", headers: { authorization: `Bearer ${token}` } });
     expect(r.status).toBe(503);
   });

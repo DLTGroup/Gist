@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import type { ExtractionTemplate, Folder, Gist } from "@gist/core";
 import { PLATFORM_LABEL, formatMinutes, formatMoney, formatTimestamp, sourceLinks, sourcePlatform, timestampLink, toPlainText } from "@gist/core";
 import { PlatformIcon } from "../lib/platformIcons.tsx";
-import { api, openExternal } from "../api.ts";
+import { ApiError, LOGIN_REQUIRED_EVENT, api, openExternal } from "../api.ts";
 import { useSession } from "../main.tsx";
 import { ListenBar } from "../components/ListenBar.tsx";
 import { ShareSheet } from "../components/ShareSheet.tsx";
@@ -194,7 +194,8 @@ function ExportMenu({ gist }: { gist: Gist }) {
     try {
       setMsg((await fn()) ?? `${label}: done`);
     } catch (e) {
-      setMsg((e as Error).message);
+      // A sign-in prompt is already showing for login_required.
+      setMsg(e instanceof ApiError && e.code === "login_required" ? null : (e as Error).message);
     }
     setTimeout(() => setMsg(null), 6000);
   };
@@ -207,7 +208,17 @@ function ExportMenu({ gist }: { gist: Gist }) {
 
   return (
     <div className="menu" ref={ref}>
-      <button className="btn-primary" onClick={() => setOpen(!open)} aria-expanded={open}>Send to… ▾</button>
+      <button
+        className="btn-primary"
+        onClick={() =>
+          user?.isGuest
+            ? window.dispatchEvent(new CustomEvent(LOGIN_REQUIRED_EVENT, { detail: "Create a free account to send gists to Notion, Obsidian, Evernote and more. This gist comes with you." }))
+            : setOpen(!open)
+        }
+        aria-expanded={open}
+      >
+        Send to… ▾
+      </button>
       {msg && <span className="pill" style={{ position: "absolute", right: 0, top: "calc(100% + 6px)", whiteSpace: "nowrap" }}>{msg}</span>}
       {open && (
         <div className="menu-pop" role="menu">

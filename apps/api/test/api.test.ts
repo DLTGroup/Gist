@@ -6,6 +6,7 @@ import { parseTimedText } from "../src/ingest/youtube.ts";
 import { parseTranscript, pickFromFeed, parseDuration } from "../src/ingest/podcast.ts";
 import { parseArticleHtml } from "../src/ingest/web.ts";
 import type { IngestedSource } from "@gist/core";
+import { member } from "./helpers.ts";
 
 const para = "Composting turns kitchen scraps into rich soil for the garden. Balance green material like vegetable peels with brown material like dry leaves. Turn the pile every week so oxygen reaches the microbes doing the work. Keep the pile about as damp as a wrung-out sponge for the fastest results. Avoid meat and dairy because they attract pests and smell. Finished compost is dark, crumbly and smells like a forest floor after rain. ";
 const fakeSource = (url?: string | null): IngestedSource => ({
@@ -23,17 +24,14 @@ function setup() {
     const type = res.headers.get("content-type") ?? "";
     return { status: res.status, json: type.includes("json") ? await res.json() : null, text: type.includes("json") ? null : await res.text(), headers: res.headers };
   };
-  return { call, setToken: (t: string) => (token = t) };
+  return { call, db, setToken: (t: string) => (token = t) };
 }
 
 describe("API end to end", () => {
   it("signs up, makes a gist, organizes, searches, exports and reports savings", async () => {
-    const { call, setToken } = setup();
+    const { call, db, setToken } = setup();
     expect((await call("GET", "/api/gists")).status).toBe(401);
-    const su = await call("POST", "/api/auth/signup", { email: "jesse@example.ca", password: "correct horse", name: "Jesse" });
-    expect(su.status).toBe(201);
-    setToken(su.json.token);
-    expect((await call("POST", "/api/auth/signup", { email: "JESSE@example.ca", password: "correct horse" })).status).toBe(409);
+    setToken(member(db, "jesse@example.ca", "Jesse"));
 
     const folder = await call("POST", "/api/folders", { name: "Garden" });
     const made = await call("POST", "/api/gists?wait=1", { url: "https://youtu.be/dQw4w9WgXcQ", templateId: "takeaways-actions", focus: "pests", folderId: folder.json.folder.id });
@@ -84,10 +82,10 @@ describe("API end to end", () => {
   });
 
   it("isolates users", async () => {
-    const { call, setToken } = setup();
-    setToken((await call("POST", "/api/auth/signup", { email: "a@x.ca", password: "password1" })).json.token);
+    const { call, db, setToken } = setup();
+    setToken(member(db, "a@x.ca"));
     const g = (await call("POST", "/api/gists?wait=1", { url: "https://youtu.be/dQw4w9WgXcQ" })).json.gist;
-    setToken((await call("POST", "/api/auth/signup", { email: "b@x.ca", password: "password1" })).json.token);
+    setToken(member(db, "b@x.ca"));
     expect((await call("GET", `/api/gists/${g.id}`)).status).toBe(404);
     expect((await call("GET", "/api/gists?q=compost")).json.gists).toHaveLength(0);
   });

@@ -25,11 +25,11 @@ async function req<T>(method: string, path: string, body?: unknown): Promise<T> 
     body: body ? JSON.stringify(body) : undefined,
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error((data as { error?: string }).error ?? `Request failed (${res.status})`);
+  if (!res.ok) throw Object.assign(new Error((data as { error?: string }).error ?? `Request failed (${res.status})`), { code: (data as { code?: string }).code ?? null });
   return data as T;
 }
 
-export interface Me { id: string; email: string; name: string | null; settings: UserSettings }
+export interface Me { id: string; email: string | null; name: string | null; settings: UserSettings; isGuest: boolean; hasPasskeys: boolean; guestGistsLeft?: number }
 export interface Totals { gists: number; minutesSaved: number; moneySaved: number; wordsAvoided: number; originalMinutes: number; gistMinutes: number; currency: string }
 
 export interface ShareInfo {
@@ -39,8 +39,11 @@ export interface ShareInfo {
 }
 
 export const api = {
-  signup: (email: string, password: string) => req<{ token: string; user: Me }>("POST", "/api/auth/signup", { email, password }),
-  login: (email: string, password: string) => req<{ token: string; user: Me }>("POST", "/api/auth/login", { email, password }),
+  // No passwords: a 6-digit code is emailed, and the app proves it asked for it by sending back the attempt id.
+  emailStart: (email: string) => req<{ ok: true; attemptId: string }>("POST", "/api/auth/email/start", { email }),
+  emailVerify: (code: string, attemptId: string) => req<{ token: string; isNew: boolean; recovery: boolean }>("POST", "/api/auth/email/verify", { code, attemptId }),
+  guest: () => req<{ token: string | null }>("POST", "/api/auth/guest"),
+  logout: () => req("POST", "/api/auth/logout"),
   me: () => req<{ user: Me }>("GET", "/api/me"),
   updateSettings: (p: Partial<UserSettings>) => req<{ user: Me }>("PATCH", "/api/settings", p),
   templates: () => req<{ templates: ExtractionTemplate[] }>("GET", "/api/templates"),
