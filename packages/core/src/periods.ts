@@ -121,3 +121,29 @@ export function changeFromPrevious(entries: HourlySavings[], p: Period, now = ne
   const shown = sumRange(entries, start, running ? new Date(now.getTime() + 1) : end).minutesSaved;
   return before > 0 ? Math.round((shown / before - 1) * 100) : null;
 }
+
+/** Paid plans: monthly price (CAD) and the gists each includes per month. */
+export const PAID_PLANS = [
+  { id: "pro", name: "Pro", price: 10, gistsPerMonth: 200 },
+  { id: "pro-plus", name: "Pro+", price: 20, gistsPerMonth: 1000 },
+] as const;
+
+const DAYS_PER_MONTH = 30.4;
+
+/**
+ * How many times over each paid plan pays for itself at the recent pace. Only the gists a plan
+ * includes count toward its value.
+ */
+export function planPayback(pace: ReturnType<typeof recentPace>) {
+  const gists = (pace.gists / 28) * DAYS_PER_MONTH;
+  const value = pace.moneyPerDay * DAYS_PER_MONTH;
+  return {
+    gistsPerMonth: gists,
+    valuePerMonth: value,
+    plans: PAID_PLANS.map((p) => {
+      const counted = Math.min(gists, p.gistsPerMonth);
+      const planValue = gists > 0 ? (value * counted) / gists : 0;
+      return { ...p, value: planValue, times: planValue / p.price, overLimit: gists > p.gistsPerMonth };
+    }),
+  };
+}

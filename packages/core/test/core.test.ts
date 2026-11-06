@@ -3,7 +3,7 @@ import {
   sourcePlatform,
   BUILT_IN_TEMPLATES, buildUserPrompt, computeSavings, detectSourceKind, formatMinutes, obsidianUri,
   sourceLinks, timestampLink, toEnex, toMarkdown, toNotionBlocks, validateTemplate, youtubeLinks, youtubeVideoId, type Gist,
-  changeFromPrevious, paceUntil, periodRange, periodSlots, periodStart, recentPace, sumRange, type HourlySavings,
+  changeFromPrevious, paceUntil, periodRange, planPayback, periodSlots, periodStart, recentPace, sumRange, type HourlySavings,
 } from "../src/index.ts";
 
 describe("source detection", () => {
@@ -204,5 +204,18 @@ describe("savings periods", () => {
     // Last week in full (35) against the week before (nothing).
     expect(changeFromPrevious(entries, "week", now, -1)).toBeNull();
     expect(changeFromPrevious(entries, "day", now)).toBeNull();
+  });
+
+  it("works out each plan's payback from the recent pace, counting only the gists it includes", () => {
+    // 28 gists in 28 days, $280 of time: about 30 a month worth $304.
+    const small = planPayback({ gists: 28, minutesPerDay: 20, moneyPerDay: 10 });
+    expect(small.plans[0]).toMatchObject({ name: "Pro", overLimit: false });
+    expect(small.plans[0].times).toBeCloseTo(30.4);
+    expect(small.plans[1].times).toBeCloseTo(15.2);
+    // About 1,520 gists a month: Pro counts 200 of them, Pro+ 1,000.
+    const big = planPayback({ gists: 1400, minutesPerDay: 500, moneyPerDay: 250 });
+    expect(big.plans[0].overLimit).toBe(true);
+    expect(big.plans[0].value).toBeCloseTo((250 * 30.4 * 200) / (1400 / 28 * 30.4));
+    expect(big.plans[1].value).toBeCloseTo((250 * 30.4 * 1000) / (1400 / 28 * 30.4));
   });
 });

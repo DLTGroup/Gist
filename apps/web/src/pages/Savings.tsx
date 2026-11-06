@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  SLOT_OF, changeFromPrevious, entryTime, formatMinutes, formatMoney, paceUntil, periodRange, periodSlots, recentPace, sumRange,
+  SLOT_OF, changeFromPrevious, entryTime, formatMinutes, formatMoney, paceUntil, periodRange, periodSlots, planPayback, recentPace, sumRange,
   type Period, type PeriodSlot,
 } from "@gist/core";
 import { api, type SavingsReport } from "../api.ts";
@@ -55,6 +55,47 @@ function slotName(s: PeriodSlot, p: Period): string {
 const compactMinutes = (m: number) => (m < 1 ? "" : m < 60 ? `${Math.round(m)}m` : `${(m / 60 >= 100 ? Math.round(m / 60) : (m / 60).toFixed(1).replace(/\.0$/, ""))}h`);
 const compactMoney = (n: number) => (n < 1 ? "" : n >= 1000 ? `$${(n / 1000).toFixed(1).replace(/\.0$/, "")}k` : `$${Math.round(n)}`);
 const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
+const times = (x: number) => (x >= 10 ? `${Math.round(x).toLocaleString("en-CA")}×` : `${x.toLocaleString("en-CA", { maximumFractionDigits: 1 })}×`);
+
+/** How many times over Pro and Pro+ would pay for themselves at the person's recent pace. */
+function Payback({ pace, currency }: { pace: ReturnType<typeof recentPace>; currency: string }) {
+  const pb = planPayback(pace);
+  const gists = Math.round(pb.gistsPerMonth);
+  return (
+    <div className="card">
+      <div className="payback-head">
+        <h2>Does a paid plan pay for itself?</h2>
+        {pace.gists > 0 && (
+          <p className="muted small">
+            At your pace over the last 28 days: about {plural(gists, "gist")} a month, worth {formatMoney(pb.valuePerMonth, currency)} of your time.
+          </p>
+        )}
+      </div>
+      {pace.gists === 0 ? (
+        <p className="muted">Make a few gists and this shows how many times over Pro and Pro+ would pay for themselves at your pace.</p>
+      ) : (
+        <div className="payback">
+          {pb.plans.map((p) => (
+            <div key={p.id} className={`pb${p.times < 1 ? " low" : ""}`}>
+              <span className="pb-k">{p.name} <em>${p.price} a month</em></span>
+              <span className="pb-lead">{p.times >= 1 ? "Pays for itself" : "Doesn't pay for itself yet"}</span>
+              <b>{times(p.times)}</b>
+              <span className="pb-s">
+                {p.times >= 1 ? "You'd get about " : "At this pace you'd get about "}
+                {formatMoney(p.value, currency).replace(/\.00$/, "")} of your time back each month, for ${p.price}.
+              </span>
+              <span className="pb-n">
+                {p.overLimit
+                  ? `Includes ${p.gistsPerMonth.toLocaleString("en-CA")} gists a month, so this counts ${p.gistsPerMonth.toLocaleString("en-CA")} of your ${gists.toLocaleString("en-CA")}.`
+                  : `Covers all ${gists.toLocaleString("en-CA")} of your gists a month.`}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function SavingsPage() {
   const [r, setR] = useState<SavingsReport | null>(null);
@@ -242,6 +283,8 @@ export function SavingsPage() {
               <p className="muted">No gists in this {period}.</p>
             )}
           </div>
+
+          <Payback pace={pace} currency={t.currency} />
 
           <div className="card">
             <h2>Effort</h2>

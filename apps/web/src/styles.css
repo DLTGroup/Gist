@@ -191,6 +191,17 @@ label { display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.3
 .pbars .proj { display: block; flex: none; width: 100%; border: 1.5px dashed var(--save); border-bottom: 0; border-radius: 6px 6px 0 0; background: color-mix(in srgb, var(--save) 10%, transparent); }
 .pbars.many .proj { border-width: 1px; }
 .pbars .proj + .b { border-radius: 0 0 2px 2px; }
+.payback-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.2rem 1rem; margin-bottom: 0.9rem; }
+.payback-head h2, .payback-head p { margin: 0; }
+.payback { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 0.7rem; }
+.pb { display: grid; gap: 0.15rem; align-content: start; min-width: 0; padding: 1rem 1.1rem; border-radius: 14px; background: var(--save-soft); border: 1px solid color-mix(in srgb, var(--save) 35%, transparent); }
+.pb-k { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.pb-k em { font-style: normal; font-weight: 500; letter-spacing: 0.02em; text-transform: none; margin-left: 0.3rem; }
+.pb-lead { font-size: 0.88rem; font-weight: 600; margin-top: 0.35rem; }
+.pb b { font-size: 2.4rem; line-height: 1.05; font-weight: 800; color: var(--save); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; overflow-wrap: anywhere; }
+.pb.low b { color: var(--muted); }
+.pb-s { font-size: 0.88rem; line-height: 1.4; }
+.pb-n { font-size: 0.78rem; line-height: 1.35; color: var(--muted); margin-top: 0.25rem; }
 .pdetail { display: flex; flex-wrap: wrap; gap: 0.2rem 0.8rem; align-items: baseline; margin-top: 1rem; padding-top: 0.9rem; border-top: 1px solid var(--border); }
 .pmeta { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.8rem; margin: 1rem 0 0.4rem; }
 .pmeta div { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
