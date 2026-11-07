@@ -1,4 +1,4 @@
-import type { ExportTarget, ExtractionTemplate, Folder, Gist, UserSettings } from "@gist/core";
+import type { SummaryPart, ExportTarget, ExtractionTemplate, Folder, Gist, UserSettings } from "@gist/core";
 import type { AuthenticationResponseJSON, PublicKeyCredentialCreationOptionsJSON, PublicKeyCredentialRequestOptionsJSON, RegistrationResponseJSON } from "@simplewebauthn/browser";
 
 declare global {
@@ -169,7 +169,7 @@ export const api = {
     return req<{ gists: Gist[]; hasMore: boolean }>("GET", `/api/gists?${q}`);
   },
   gist: (id: string) => req<{ gist: Gist }>("GET", `/api/gists/${id}`),
-  updateGist: (id: string, patch: { folderId?: string | null; tags?: string[]; favourite?: boolean; title?: string }) =>
+  updateGist: (id: string, patch: { folderId?: string | null; tags?: string[]; favourite?: boolean; title?: string; remove?: SummaryPart; restore?: "last" | "all" }) =>
     req<{ gist: Gist }>("PATCH", `/api/gists/${id}`, patch),
   deleteGist: (id: string) => req("DELETE", `/api/gists/${id}`),
   regenerate: (id: string, templateId?: string, focus?: string) => req<{ gist: Gist }>("POST", `/api/gists/${id}/regenerate`, { templateId, focus }),

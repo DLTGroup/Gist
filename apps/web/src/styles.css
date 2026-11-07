@@ -124,6 +124,20 @@ label { display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.3
 .section li { margin: 0.35rem 0; }
 .section li.check { list-style: none; margin-left: -1.3rem; display: flex; gap: 0.5rem; align-items: flex-start; }
 .section li.check input { width: auto; margin-top: 0.3rem; }
+/* removing single pieces of a gist */
+.removable { position: relative; }
+p.removable, .tldr.removable { display: flex; gap: 0.5rem; align-items: flex-start; }
+p.removable > span:first-child { flex: 1; min-width: 0; }
+.section li.removable { padding-right: 2rem; }
+.section li.check.removable { padding-right: 2rem; }
+.remove-piece { flex: none; display: inline-grid; place-items: center; width: 1.7rem; height: 1.7rem; padding: 0; border: 1px solid transparent; border-radius: 999px; background: none; color: var(--muted); cursor: pointer; opacity: 0.55; transition: opacity 0.15s, background 0.15s, color 0.15s; }
+li.removable > .remove-piece { position: absolute; right: 0; top: 0; }
+.removable:hover > .remove-piece, .remove-piece:focus-visible { opacity: 1; }
+.remove-piece:hover { background: color-mix(in srgb, var(--danger, #b42318) 12%, transparent); color: var(--danger, #b42318); border-color: color-mix(in srgb, var(--danger, #b42318) 30%, transparent); }
+.remove-piece:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (hover: none) { .remove-piece { opacity: 0.8; } }
+.removed-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.4rem 1rem; padding: 0.7rem 0.9rem; margin: 0.8rem 0; border-radius: 10px; background: var(--surface-2); font-size: 0.9rem; }
+.removed-actions { display: flex; gap: 1rem; }
 .ts { font-size: 0.78rem; font-variant-numeric: tabular-nums; margin-left: 0.35rem; padding: 0.05rem 0.4rem; border-radius: 6px; background: var(--surface-2); color: var(--muted); }
 .savings-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.6rem; margin: 1rem 0; }
 .savings-strip .stat { background: var(--save-soft); color: var(--save); border-radius: 10px; padding: 0.6rem 0.8rem; }

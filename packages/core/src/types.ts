@@ -129,6 +129,8 @@ export interface Gist {
   tags: string[];
   favourite: boolean;
   model: string | null;
+  /** How many pieces the person removed from the summary; they can be put back. */
+  removedCount?: number;
   createdAt: string;
   updatedAt: string;
 }

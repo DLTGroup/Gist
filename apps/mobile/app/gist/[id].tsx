@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Linking, ScrollView, Share, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, Share, Text, View } from "react-native";
 import { Stack, router, useLocalSearchParams } from "expo-router";
-import type { Gist } from "@gist/core";
+import type { Gist, SummaryPart } from "@gist/core";
 import { formatMinutes, formatMoney, formatTimestamp, sourceLinks, timestampLink, toMarkdown, toPlainText } from "@gist/core";
 import { api } from "../../lib/api";
 import { useSession } from "../../lib/session";
@@ -18,6 +18,8 @@ export default function GistScreen() {
   const [g, setG] = useState<Gist | null>(null);
   const [sharing, setSharing] = useState(false);
   const [speaking, setSpeaking] = useState<string | null>(null);
+  // The last piece removed, for the Undo bar.
+  const [justRemoved, setJustRemoved] = useState<string | null>(null);
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
@@ -46,6 +48,29 @@ export default function GistScreen() {
       if (!handledLoginRequired(e)) Alert.alert("Couldn't send", (e as Error).message);
     }
   };
+  /** Removes one piece of the summary; it stays out of anything sent or shared as text. */
+  const removePiece = async (part: SummaryPart, label: string) => {
+    try {
+      setG((await api.updateGist(g.id, { remove: part })).gist);
+      setJustRemoved(label);
+    } catch (e) {
+      if (!handledLoginRequired(e)) Alert.alert("Couldn't remove that", (e as Error).message);
+    }
+  };
+  const restore = async (which: "last" | "all") => {
+    try {
+      setG((await api.updateGist(g.id, { restore: which })).gist);
+      setJustRemoved(null);
+    } catch (e) {
+      Alert.alert("Couldn't put it back", (e as Error).message);
+    }
+  };
+  const removed = g.removedCount ?? 0;
+  const X = ({ what, onPress }: { what: string; onPress: () => void }) => (
+    <Pressable onPress={onPress} hitSlop={10} accessibilityRole="button" accessibilityLabel={`Remove ${what}`} style={({ pressed }) => ({ paddingHorizontal: 6, paddingVertical: 2, borderRadius: 999, backgroundColor: pressed ? t.saveSoft : undefined })}>
+      <Text style={{ color: t.muted, fontSize: 16, fontWeight: "700" }}>×</Text>
+    </Pressable>
+  );
   const exportSheet = () =>
     user?.isGuest
       ? askToSignIn("Create a free account to send gists to your notes app. This gist comes with you.")
@@ -82,25 +107,50 @@ export default function GistScreen() {
             </View>
           )}
           <ListenBar gist={g} onSegment={setSpeaking} />
-          <Text style={{ color: t.text, fontSize: 16, marginTop: 16, backgroundColor: speaking === "tldr" ? t.saveSoft : undefined, borderLeftWidth: 4, borderLeftColor: t.accent, paddingLeft: 10 }}>
-            <Text style={{ fontWeight: "800" }}>TL;DR </Text>
-            {g.summary.tldr}
-          </Text>
+          {!!g.summary.tldr && (
+            <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 6, marginTop: 16, backgroundColor: speaking === "tldr" ? t.saveSoft : undefined, borderLeftWidth: 4, borderLeftColor: t.accent, paddingLeft: 10 }}>
+              <Text style={{ flex: 1, color: t.text, fontSize: 16 }}>
+                <Text style={{ fontWeight: "800" }}>TL;DR </Text>
+                {g.summary.tldr}
+              </Text>
+              <X what="the TL;DR" onPress={() => removePiece({ kind: "tldr" }, "the TL;DR")} />
+            </View>
+          )}
+          {(justRemoved || removed > 0) && (
+            <View accessibilityLiveRegion="polite" style={{ marginTop: 14, padding: 12, borderRadius: 10, backgroundColor: t.saveSoft, gap: 8 }}>
+              <Text style={{ color: t.text }}>
+                {justRemoved ? `Removed ${justRemoved}.` : `${removed} ${removed === 1 ? "piece" : "pieces"} removed.`} Removed pieces are left out when you send this gist.
+              </Text>
+              <View style={{ flexDirection: "row", gap: 18 }}>
+                {justRemoved && <Text style={{ color: t.accent, fontWeight: "700" }} onPress={() => restore("last")}>Undo</Text>}
+                {removed > 1 && <Text style={{ color: t.accent, fontWeight: "700" }} onPress={() => restore("all")}>Restore all {removed}</Text>}
+                {!justRemoved && removed === 1 && <Text style={{ color: t.accent, fontWeight: "700" }} onPress={() => restore("all")}>Restore it</Text>}
+              </View>
+            </View>
+          )}
           {g.summary.sections.map((sec) =>
             !sec.paragraph && !sec.items.length ? null : (
               <View key={sec.id} style={{ marginTop: 20 }}>
                 <Text style={{ color: t.text, fontSize: 18, fontWeight: "700", marginBottom: 6 }}>{sec.heading}</Text>
-                {sec.paragraph && <Text style={{ color: t.text, lineHeight: 22 }}>{sec.paragraph}</Text>}
+                {sec.paragraph && (
+                  <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 6, marginBottom: 6 }}>
+                    <Text style={{ flex: 1, color: t.text, lineHeight: 22 }}>{sec.paragraph}</Text>
+                    <X what="this paragraph" onPress={() => removePiece({ kind: "paragraph", sectionId: sec.id }, "a paragraph")} />
+                  </View>
+                )}
                 {sec.items.map((it, i) => {
                   const link = it.timestamp != null ? timestampLink(g.source.kind, g.source.url, it.timestamp, g.source.audioUrl) : null;
                   const bullet = sec.format === "numbered" ? `${i + 1}.` : sec.format === "checklist" ? "☐" : "•";
                   return (
-                    <Text key={i} style={{ color: t.text, lineHeight: 22, marginBottom: 6, backgroundColor: speaking === `i:${sec.id}:${i}` ? t.saveSoft : undefined }}>
-                      {bullet} {it.text}
-                      {it.timestamp != null && (
-                        <Text style={{ color: link ? t.accent : t.muted }} onPress={() => link && Linking.openURL(link)}> ({formatTimestamp(it.timestamp)})</Text>
-                      )}
-                    </Text>
+                    <View key={`${i}:${it.text.slice(0, 24)}`} style={{ flexDirection: "row", alignItems: "flex-start", gap: 6, marginBottom: 6, backgroundColor: speaking === `i:${sec.id}:${i}` ? t.saveSoft : undefined }}>
+                      <Text style={{ flex: 1, color: t.text, lineHeight: 22 }}>
+                        {bullet} {it.text}
+                        {it.timestamp != null && (
+                          <Text style={{ color: link ? t.accent : t.muted }} onPress={() => link && Linking.openURL(link)}> ({formatTimestamp(it.timestamp)})</Text>
+                        )}
+                      </Text>
+                      <X what="this point" onPress={() => removePiece({ kind: "item", sectionId: sec.id, index: i }, "a point")} />
+                    </View>
                   );
                 })}
               </View>

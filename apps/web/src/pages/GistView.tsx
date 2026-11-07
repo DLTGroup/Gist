@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import type { ExtractionTemplate, Folder, Gist } from "@gist/core";
+import type { ExtractionTemplate, Folder, Gist, SummaryPart } from "@gist/core";
 import { PLATFORM_LABEL, formatMinutes, formatMoney, formatTimestamp, sourceLinks, sourcePlatform, timestampLink, toPlainText } from "@gist/core";
 import { PlatformIcon } from "../lib/platformIcons.tsx";
 import { ApiError, LOGIN_REQUIRED_EVENT, api, openExternal } from "../api.ts";
@@ -15,6 +15,9 @@ export function GistView() {
   const [error, setError] = useState<string | null>(null);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [sharing, setSharing] = useState(false);
+  // The last piece removed, for the Undo bar.
+  const [justRemoved, setJustRemoved] = useState<string | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
@@ -38,6 +41,28 @@ export function GistView() {
 
   if (error) return <p className="error">{error}</p>;
   if (!gist) return <p className="muted">Loading…</p>;
+
+  /** Removes one piece of the summary; it stays out of anything sent or downloaded. */
+  async function removePiece(part: SummaryPart, label: string) {
+    setEditError(null);
+    try {
+      const r = await api.updateGist(gist!.id, { remove: part });
+      setGist(r.gist);
+      setJustRemoved(label);
+    } catch (e) {
+      if (!(e instanceof ApiError && e.code === "login_required")) setEditError((e as Error).message);
+    }
+  }
+  async function restore(which: "last" | "all") {
+    setEditError(null);
+    try {
+      const r = await api.updateGist(gist!.id, { restore: which });
+      setGist(r.gist);
+      setJustRemoved(null);
+    } catch (e) {
+      setEditError((e as Error).message);
+    }
+  }
 
   const update = async (patch: Parameters<typeof api.updateGist>[1]) => setGist((await api.updateGist(gist.id, patch)).gist);
 
@@ -106,7 +131,28 @@ export function GistView() {
           )}
           <ListenBar gist={gist} />
           {gist.focus && <p className="pill pill-accent">Looking for: {gist.focus}</p>}
-          <p className="tldr" data-say="tldr"><strong>TL;DR</strong> {gist.summary.tldr}</p>
+          {gist.summary.tldr && (
+            <p className="tldr removable" data-say="tldr">
+              <span><strong>TL;DR</strong> {gist.summary.tldr}</span>
+              <RemoveButton what="the TL;DR" onClick={() => removePiece({ kind: "tldr" }, "the TL;DR")} />
+            </p>
+          )}
+          {(justRemoved || (gist.removedCount ?? 0) > 0 || editError) && (
+            <div className="removed-bar" role="status">
+              {editError ? (
+                <span className="error">{editError}</span>
+              ) : (
+                <span>
+                  {justRemoved ? `Removed ${justRemoved}.` : `${gist.removedCount} ${gist.removedCount === 1 ? "piece" : "pieces"} removed.`} Removed pieces are left out when you send or download this gist.
+                </span>
+              )}
+              <span className="removed-actions">
+                {justRemoved && <button type="button" className="link" onClick={() => restore("last")}>Undo</button>}
+                {(gist.removedCount ?? 0) > 1 && <button type="button" className="link" onClick={() => restore("all")}>Restore all {gist.removedCount}</button>}
+                {!justRemoved && gist.removedCount === 1 && <button type="button" className="link" onClick={() => restore("all")}>Restore it</button>}
+              </span>
+            </div>
+          )}
 
           {gist.summary.sections.map((sec) => {
             if (!sec.paragraph && !sec.items.length) return null;
@@ -114,16 +160,22 @@ export function GistView() {
             return (
               <section className="section" key={sec.id}>
                 <h2 data-say={`h:${sec.id}`}>{sec.heading}</h2>
-                {sec.paragraph && <p data-say={`p:${sec.id}`}>{sec.paragraph}</p>}
+                {sec.paragraph && (
+                  <p className="removable" data-say={`p:${sec.id}`}>
+                    <span>{sec.paragraph}</span>
+                    <RemoveButton what="this paragraph" onClick={() => removePiece({ kind: "paragraph", sectionId: sec.id }, "a paragraph")} />
+                  </p>
+                )}
                 {sec.items.length > 0 && (
                   <List>
                     {sec.items.map((it, i) => (
-                      <li key={i} data-say={`i:${sec.id}:${i}`} className={sec.format === "checklist" ? "check" : undefined}>
+                      <li key={`${i}:${it.text.slice(0, 24)}`} data-say={`i:${sec.id}:${i}`} className={`removable${sec.format === "checklist" ? " check" : ""}`}>
                         {sec.format === "checklist" && <input type="checkbox" aria-label="Done" />}
                         <span>
                           {it.text}
                           {it.timestamp != null && <Timestamp gist={gist} seconds={it.timestamp} />}
                         </span>
+                        <RemoveButton what="this point" onClick={() => removePiece({ kind: "item", sectionId: sec.id, index: i }, "a point")} />
                       </li>
                     ))}
                   </List>
@@ -147,6 +199,16 @@ export function GistView() {
 }
 
 const confirmDelete = () => window.confirm("Delete this gist?");
+
+function RemoveButton({ what, onClick }: { what: string; onClick: () => void }) {
+  return (
+    <button type="button" className="remove-piece" aria-label={`Remove ${what}`} title={`Remove ${what}`} onClick={onClick}>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden>
+        <path d="M6 6l12 12M18 6L6 18" />
+      </svg>
+    </button>
+  );
+}
 
 
 function Timestamp({ gist, seconds }: { gist: Gist; seconds: number }) {
