@@ -25,6 +25,16 @@ services:
         sync: false
       - key: GIST_GUEST_GISTS
         value: "1"
+      # Marketing email consent (CASL). The optional box appears only once the first three are set.
+      - key: GIST_BUSINESS_NAME
+        sync: false
+      - key: GIST_MAILING_ADDRESS
+        sync: false
+      - key: GIST_CONTACT_EMAIL
+        sync: false
+      # Comma-separated emails of people who can download the mailing list from Settings.
+      - key: GIST_ADMIN_EMAILS
+        sync: false
       # Google sign-in and YouTube import share one OAuth client.
       - key: GOOGLE_CLIENT_ID
         sync: false

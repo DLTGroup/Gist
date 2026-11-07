@@ -4,6 +4,7 @@ import { api } from "../api.ts";
 import { useSession } from "../main.tsx";
 import { ConnectedAccounts } from "../components/ConnectedAccounts.tsx";
 import { AccountSecurity } from "../components/AccountSecurity.tsx";
+import { EmailPreferences } from "../components/EmailPreferences.tsx";
 import { useNavigate } from "react-router-dom";
 
 export function SettingsPage() {
@@ -37,6 +38,8 @@ export function SettingsPage() {
       <h1>Settings</h1>
 
       <AccountSecurity />
+
+      <EmailPreferences />
 
       <ConnectedAccounts />
 

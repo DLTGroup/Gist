@@ -27,6 +27,7 @@ import { ExportError, sendToTarget } from "./exporters.ts";
 import { renderSharePage } from "./sharePage.ts";
 import { ConnectionError, Connections, PROVIDERS, type Provider } from "./connections.ts";
 import { randomBytes } from "node:crypto";
+import { consentRequest, grantConsent, mailingListCsv, marketingConfig, unsubscribePage, userForUnsubscribeToken, withdrawConsent } from "./marketing.ts";
 
 type Env = { Variables: { userId: string; isGuest: boolean } };
 type Row = Record<string, unknown>;
@@ -145,6 +146,23 @@ export function createApp({ db, summarizer, ingestFn = ingest, expandFn = expand
   app.get("/api/health", (c) => c.json({ ok: true, demo: summarizer.model.startsWith("demo") }));
 
   const { currentToken, hasPasskeys } = mountIdentity(app, { db, mailer, publicBase: (c) => publicBase(c), ...identity });
+  const env = identity.env ?? process.env;
+
+  // ---------- marketing email consent (public) ----------
+  // The words for the unticked box on the sign-in page. available is false until the operator sets the details CASL requires.
+  app.get("/api/marketing/consent", (c) => c.json(consentRequest(env)));
+  // The unsubscribe link in emails. GET shows a button so link scanners can't unsubscribe people; POST also serves one-click unsubscribe.
+  app.get("/u/:token", (c) => {
+    const u = userForUnsubscribeToken(db, c.req.param("token"));
+    if (!u) return c.html(unsubscribePage("invalid"), 404);
+    return c.html(unsubscribePage(u.optedIn ? "ask" : "done", u.email));
+  });
+  app.post("/u/:token", (c) => {
+    const u = userForUnsubscribeToken(db, c.req.param("token"));
+    if (!u) return c.html(unsubscribePage("invalid"), 404);
+    withdrawConsent(db, { userId: u.id, source: "unsubscribe-link", c });
+    return c.html(unsubscribePage("done", u.email));
+  });
 
   // ---------- connected accounts: provider redirect (public; the one-time state identifies the user) ----------
   const provider = (c: Context): Provider => {
@@ -186,8 +204,10 @@ export function createApp({ db, summarizer, ingestFn = ingest, expandFn = expand
     await next();
   });
 
+  const isAdmin = (r: Row) => !r.is_guest && !!r.email && marketingConfig(env).admins.includes(String(r.email).toLowerCase());
+
   function publicUser(id: string) {
-    const r = db.prepare("SELECT id, email, name, created_at, is_guest, recovery_until, google_sub FROM users WHERE id = ?").get(id) as Row;
+    const r = db.prepare("SELECT id, email, name, created_at, is_guest, recovery_until, google_sub, marketing_opt_in FROM users WHERE id = ?").get(id) as Row;
     const settings = getSettings(db, id);
     const masked = { ...settings } as Record<string, unknown>;
     for (const f of SECRET_FIELDS) masked[f] = settings[f] ? "••••" + String(settings[f]).slice(-4) : null;
@@ -195,6 +215,7 @@ export function createApp({ db, summarizer, ingestFn = ingest, expandFn = expand
     return {
       id: r.id, email: r.email ?? null, name: r.name ?? null, createdAt: r.created_at, settings: masked,
       isGuest: !!r.is_guest, hasPasskeys: hasPasskeys(id), google: !!r.google_sub,
+      marketingOptIn: !!r.marketing_opt_in, isAdmin: isAdmin(r),
       recoveryUntil: recovering ? r.recovery_until : null,
       ...(r.is_guest ? { guestGistsLeft: Math.max(0, guestGistLimit - guestGistCount(id)) } : {}),
     };
@@ -222,6 +243,34 @@ export function createApp({ db, summarizer, ingestFn = ingest, expandFn = expand
     if (next.webhookUrl && !/^https:\/\//.test(next.webhookUrl)) fail(400, "Webhook URLs must start with https://");
     db.prepare("UPDATE users SET settings_json = ? WHERE id = ?").run(JSON.stringify(next), uid);
     return c.json({ user: publicUser(uid) });
+  });
+
+  // ---------- marketing email consent (signed in) ----------
+  app.patch("/api/marketing", async (c) => {
+    const uid = c.get("userId");
+    const { optIn, source } = await body<{ optIn?: unknown; source?: unknown }>(c);
+    if (typeof optIn !== "boolean") fail(400, "Say whether you want marketing emails.");
+    if (optIn) {
+      if (!consentRequest(env).available) fail(400, "Marketing emails aren't set up yet.");
+      await grantConsent(db, { userId: uid, source: source === "signin" ? "signin" : "settings", c, base: publicBase(c), mailer, env });
+    } else withdrawConsent(db, { userId: uid, source: "settings", c });
+    return c.json({ user: publicUser(uid) });
+  });
+  // The mailing list, for the operators named in GIST_ADMIN_EMAILS. Everyone else gets a plain 404.
+  app.get("/api/admin/mailing-list.csv", (c) => {
+    const r = db.prepare("SELECT email, is_guest FROM users WHERE id = ?").get(c.get("userId")) as Row;
+    if (!isAdmin(r)) fail(404, "Not found.");
+    const { csv } = mailingListCsv(db, publicBase(c));
+    return c.body(csv, 200, {
+      "content-type": "text/csv; charset=utf-8",
+      "content-disposition": `attachment; filename="gist-mailing-list-${now().slice(0, 10)}.csv"`,
+      "cache-control": "no-store",
+    });
+  });
+  app.get("/api/admin/mailing-list", (c) => {
+    const r = db.prepare("SELECT email, is_guest FROM users WHERE id = ?").get(c.get("userId")) as Row;
+    if (!isAdmin(r)) fail(404, "Not found.");
+    return c.json({ count: mailingListCsv(db, publicBase(c)).count });
   });
 
   // ---------- templates ----------

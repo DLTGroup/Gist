@@ -172,6 +172,25 @@ export function openDb(path: string): DB {
     next TEXT,
     created_at TEXT NOT NULL
   )`);
+  // Marketing email consent (CASL): the current choice on the user, and a log of every grant and withdrawal.
+  const uCols = (db.prepare("PRAGMA table_info(users)").all() as { name: string }[]).map((c) => c.name);
+  if (!uCols.includes("marketing_opt_in")) db.exec("ALTER TABLE users ADD COLUMN marketing_opt_in INTEGER NOT NULL DEFAULT 0");
+  if (!uCols.includes("marketing_token")) db.exec("ALTER TABLE users ADD COLUMN marketing_token TEXT");
+  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS users_marketing_token ON users(marketing_token)");
+  const lsCols = (db.prepare("PRAGMA table_info(login_states)").all() as { name: string }[]).map((c) => c.name);
+  if (!lsCols.includes("marketing")) db.exec("ALTER TABLE login_states ADD COLUMN marketing INTEGER NOT NULL DEFAULT 0");
+  db.exec(`CREATE TABLE IF NOT EXISTS consent_log (
+    id TEXT PRIMARY KEY,
+    user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+    email TEXT NOT NULL,
+    action TEXT NOT NULL,
+    source TEXT NOT NULL,
+    wording TEXT NOT NULL,
+    ip TEXT,
+    user_agent TEXT,
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS consent_log_user ON consent_log(user_id, created_at)`);
   const sessCols = (db.prepare("PRAGMA table_info(sessions)").all() as { name: string }[]).map((c) => c.name);
   if (!sessCols.includes("method")) db.exec("ALTER TABLE sessions ADD COLUMN method TEXT");
 

@@ -97,6 +97,17 @@ export interface Me {
   guestGistsLeft?: number;
   /** Mid-recovery on the website: the session can only add a passkey. */
   restricted?: boolean;
+  /** Agreed to news, tips and offers by email. */
+  marketingOptIn?: boolean;
+  /** An operator who can download the mailing list. */
+  isAdmin?: boolean;
+}
+
+/** The unticked marketing-email box. available is false until the server has the details the law requires. */
+export interface ConsentRequest {
+  available: boolean;
+  label: string;
+  details: string;
 }
 
 export interface PasskeyInfo { id: string; name: string; synced: boolean; backedUp: boolean; createdAt: string; lastUsedAt: string | null }
@@ -138,7 +149,10 @@ export const api = {
   health: () => req<{ ok: boolean; demo: boolean }>("GET", "/api/health"),
   guest: () => req<{ token: string | null; userId: string }>("POST", "/api/auth/guest"),
   emailStart: (email: string) => req<{ ok: true; attemptId: string }>("POST", "/api/auth/email/start", { email }),
-  emailVerify: (code: string, attemptId: string | null, name?: string) => req<EmailVerifyResult>("POST", "/api/auth/email/verify", { code, attemptId, name }),
+  emailVerify: (code: string, attemptId: string | null, name?: string, marketing = false) => req<EmailVerifyResult>("POST", "/api/auth/email/verify", { code, attemptId, name, marketing }),
+  marketingConsent: () => req<ConsentRequest>("GET", "/api/marketing/consent"),
+  setMarketing: (optIn: boolean, source: "settings" | "signin" = "settings") => req<{ user: Me }>("PATCH", "/api/marketing", { optIn, source }),
+  mailingListCount: () => req<{ count: number }>("GET", "/api/admin/mailing-list"),
   passkeyRegisterOptions: () => req<{ options: PublicKeyCredentialCreationOptionsJSON }>("POST", "/api/auth/passkey/register/options"),
   passkeyRegisterVerify: (response: RegistrationResponseJSON, name?: string) => req<PasskeyList>("POST", "/api/auth/passkey/register/verify", { response, name }),
   passkeyLoginOptions: () => req<{ options: PublicKeyCredentialRequestOptionsJSON; challengeId: string }>("POST", "/api/auth/passkey/login/options"),
@@ -146,7 +160,12 @@ export const api = {
   passkeys: () => req<PasskeyList>("GET", "/api/auth/passkeys"),
   renamePasskey: (id: string, name: string) => req<PasskeyList>("PATCH", `/api/auth/passkeys/${encodeURIComponent(id)}`, { name }),
   deletePasskey: (id: string) => req<PasskeyList>("DELETE", `/api/auth/passkeys/${encodeURIComponent(id)}`),
-  googleStartUrl: (next?: string | null) => `${API_BASE}/api/auth/google/start${next ? `?next=${encodeURIComponent(next)}` : ""}`,
+  googleStartUrl: (next?: string | null, marketing = false) => {
+    const q = new URLSearchParams();
+    if (next) q.set("next", next);
+    if (marketing) q.set("marketing", "1");
+    return `${API_BASE}/api/auth/google/start${q.size ? `?${q}` : ""}`;
+  },
   logout: () => req("POST", "/api/auth/logout"),
   me: () => req<{ user: Me }>("GET", "/api/me"),
   updateSettings: (patch: Partial<UserSettings>) => req<{ user: Me }>("PATCH", "/api/settings", patch),

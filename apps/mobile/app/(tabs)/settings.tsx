@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { ScrollView, Text } from "react-native";
+import { useEffect, useState } from "react";
+import { ScrollView, Switch, Text, View } from "react-native";
 import { useSession } from "../../lib/session";
 import { api, API_URL } from "../../lib/api";
 import { useTheme } from "../../lib/theme";
@@ -11,6 +11,17 @@ export default function Settings() {
   const [rate, setRate] = useState(String(user?.settings.hourlyRate ?? 35));
   const [vault, setVault] = useState(user?.settings.obsidianVault ?? "");
   const [msg, setMsg] = useState<string | null>(null);
+  const [consent, setConsent] = useState<{ available: boolean; label: string; details: string } | null>(null);
+  useEffect(() => {
+    api.marketingConsent().then(setConsent, () => {});
+  }, []);
+  const setMarketing = async (v: boolean) => {
+    try {
+      setUser((await api.setMarketing(v)).user);
+    } catch (e) {
+      setMsg((e as Error).message);
+    }
+  };
   const save = async () => {
     try {
       const r = await api.updateSettings({ hourlyRate: Number(rate) || 0, obsidianVault: vault || null });
@@ -29,6 +40,15 @@ export default function Settings() {
         <Button primary title="Save" onPress={save} />
         {msg && <Text style={{ color: t.muted, marginTop: 8 }}>{msg}</Text>}
       </Card>
+      {consent?.available && !user?.isGuest && (
+        <Card style={{ marginTop: 12 }}>
+          <View style={{ flexDirection: "row", gap: 12, alignItems: "center" }}>
+            <Text style={{ flex: 1, color: t.text }}>{consent.label}</Text>
+            <Switch value={!!user?.marketingOptIn} onValueChange={setMarketing} accessibilityLabel={consent.label} />
+          </View>
+          <Text style={{ color: t.muted, fontSize: 12, lineHeight: 17, marginTop: 8 }}>{consent.details}</Text>
+        </Card>
+      )}
       <Text style={{ color: t.muted, marginVertical: 12 }}>{user?.email} · {API_URL}</Text>
       <Button title="Sign out" onPress={signOut} />
     </ScrollView>

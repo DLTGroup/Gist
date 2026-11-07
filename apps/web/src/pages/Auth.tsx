@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { api, USES_BEARER } from "../api.ts";
+import { api, USES_BEARER, type ConsentRequest } from "../api.ts";
 import { useSession } from "../main.tsx";
 import { Wordmark } from "../components/Wordmark.tsx";
 import { cancelPasskeyAutofill, createPasskey, passkeysSupported, signInWithPasskey } from "../lib/passkeys.ts";
@@ -28,6 +28,12 @@ export function AuthPage() {
   const [error, setError] = useState<string | null>(params.get("error"));
   const [busy, setBusy] = useState<string | null>(null);
   const canPasskey = passkeysSupported();
+  // Marketing email is a separate, unticked choice; it never blocks signing in.
+  const [consent, setConsent] = useState<ConsentRequest | null>(null);
+  const [marketing, setMarketing] = useState(false);
+  useEffect(() => {
+    api.marketingConsent().then(setConsent, () => {});
+  }, []);
   const guest = user?.isGuest ? user : null;
 
   // Already signed in: nothing to do here, unless recovery still needs a passkey.
@@ -58,6 +64,7 @@ export function AuthPage() {
 
   async function finish(how: true | "offer-local" = true) {
     await signIn();
+    if (marketing) await api.setMarketing(true, "signin").catch(() => {});
     // Signed in with a phone's passkey (QR code): offer to save one on this device too.
     if (how === "offer-local") {
       setCrossDevice(true);
@@ -91,7 +98,7 @@ export function AuthPage() {
   const verify = (e: React.FormEvent) => {
     e.preventDefault();
     return run("code", async () => {
-      const r = await api.emailVerify(code, attemptId);
+      const r = await api.emailVerify(code, attemptId, undefined, marketing);
       await signIn(r.token);
       setRecovery(r.recovery);
       setScoped(r.scoped);
@@ -114,7 +121,7 @@ export function AuthPage() {
             Sign in, or create a free account if you're new. No password needed.{guest ? " The gists you've made come with you." : ""}
           </p>
           {!USES_BEARER && (
-            <a className="btn auth-google" href={api.googleStartUrl(next)}>
+            <a className="btn auth-google" href={api.googleStartUrl(next, marketing)}>
               <GoogleG /> Continue with Google
             </a>
           )}
@@ -133,6 +140,7 @@ export function AuthPage() {
             {error && <p className="error" role="alert">{error}</p>}
             <button className="btn-primary auth-wide" disabled={!!busy}>{busy === "email" ? "Sending…" : "Email me a code"}</button>
           </form>
+          {consent?.available && <MarketingBox consent={consent} checked={marketing} onChange={setMarketing} />}
           {!guest && (
             <p className="muted small auth-switch">
               Just looking? <Link to="/app/new">Make a gist without an account</Link>
@@ -208,6 +216,19 @@ export function AuthPage() {
         </div>
       )}
     </div>
+  );
+}
+
+/** The optional marketing-email box. Shared with Settings so the wording is the same everywhere. */
+export function MarketingBox({ consent, checked, onChange, disabled }: { consent: ConsentRequest; checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
+  return (
+    <label className="consent">
+      <input type="checkbox" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
+      <span>
+        <span className="consent-label">{consent.label}</span>
+        <span className="consent-details">{consent.details}</span>
+      </span>
+    </label>
   );
 }
 
