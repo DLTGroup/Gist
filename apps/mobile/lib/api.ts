@@ -29,7 +29,7 @@ async function req<T>(method: string, path: string, body?: unknown): Promise<T> 
   return data as T;
 }
 
-export interface Me { id: string; email: string | null; name: string | null; settings: UserSettings; isGuest: boolean; hasPasskeys: boolean; guestGistsLeft?: number }
+export interface Me { id: string; email: string | null; name: string | null; settings: UserSettings; isGuest: boolean; hasPasskeys: boolean; guestGistsLeft?: number; marketingOptIn?: boolean }
 export interface Totals { gists: number; minutesSaved: number; moneySaved: number; wordsAvoided: number; originalMinutes: number; gistMinutes: number; currency: string }
 
 export interface ShareInfo {
@@ -41,7 +41,10 @@ export interface ShareInfo {
 export const api = {
   // No passwords: a 6-digit code is emailed, and the app proves it asked for it by sending back the attempt id.
   emailStart: (email: string) => req<{ ok: true; attemptId: string }>("POST", "/api/auth/email/start", { email }),
-  emailVerify: (code: string, attemptId: string) => req<{ token: string; isNew: boolean; recovery: boolean }>("POST", "/api/auth/email/verify", { code, attemptId }),
+  emailVerify: (code: string, attemptId: string, marketing = false) => req<{ token: string; isNew: boolean; recovery: boolean }>("POST", "/api/auth/email/verify", { code, attemptId, marketing }),
+  /** The optional marketing-email box; available is false until the server has the details the law requires. */
+  marketingConsent: () => req<{ available: boolean; label: string; details: string }>("GET", "/api/marketing/consent"),
+  setMarketing: (optIn: boolean) => req<{ user: Me }>("PATCH", "/api/marketing", { optIn }),
   guest: () => req<{ token: string | null }>("POST", "/api/auth/guest"),
   logout: () => req("POST", "/api/auth/logout"),
   me: () => req<{ user: Me }>("GET", "/api/me"),

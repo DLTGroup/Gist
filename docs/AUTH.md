@@ -53,6 +53,17 @@ An emailed code for an account that already has passkeys counts as recovery:
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google Cloud Console › APIs & Services › Credentials › OAuth client (Web application). Add the redirect URI `<GIST_PUBLIC_URL>/api/auth/google/callback`. The same client serves YouTube import (see CONNECTED_ACCOUNTS.md). |
 | `GIST_TOKEN_KEY` | Signs email codes and encrypts connected-account tokens. Render generates it. |
 | `GIST_GUEST_GISTS` | Gists allowed before sign-up (default 1). |
+| `GIST_BUSINESS_NAME`, `GIST_MAILING_ADDRESS`, `GIST_CONTACT_EMAIL` | The details Canada's anti-spam law requires in a request for consent to marketing email (SOR/2012-36, s. 4). The optional, unticked box on sign-up and in Settings appears only once all three are set. |
+| `GIST_ADMIN_EMAILS` | Comma-separated emails of people who can download the mailing list as a CSV from Settings. |
+
+## Marketing email consent
+
+- **The box.** Sign-up offers one separate, unticked box for news, tips and offers. It names who is asking, gives the mailing address and contact, and says consent can be withdrawn. Signing in never depends on it. (CRTC 2012-549, paras 5-6; CRTC 2012-548, paras 16 and 18; SOR/2012-36, s. 4.)
+- **The record.** Every grant and withdrawal goes into `consent_log`, with the date and time, the exact wording shown, how it was given (email sign-up, Google sign-up, sign-in, Settings or the unsubscribe link), the IP address and the browser. The sender has to prove consent (CRTC 2012-548, paras 26-27).
+- **Confirmation and unsubscribing.** A confirmation email with a personal unsubscribe link (`/u/<token>`) is sent once consent is given. The link opens a page with an Unsubscribe button, so mail scanners can't unsubscribe people by opening it. A POST to the link also works as one-click unsubscribe. People can switch it off in Settings too.
+- **Signing in again** without ticking the box never withdraws consent that was given earlier.
+- **The CSV** lists only people who currently agree: email, name, when and how they agreed, when they signed up, and their unsubscribe link. Cells that a spreadsheet would run as formulas are escaped.
+- **Sending.** Gist doesn't send marketing email itself. If you import the CSV into an email service, keep the two lists in step: honour unsubscribes from either side within 10 business days, and include the sender details and an unsubscribe link in every message.
 
 Cross-site request forgery: the website's session is a cookie, so every request that changes something must also carry the `x-gist-client` header, which another site can't add without CORS approval. Native apps send a bearer token instead.
 

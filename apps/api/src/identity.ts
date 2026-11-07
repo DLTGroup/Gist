@@ -14,6 +14,7 @@ import { createRemoteJWKSet, jwtVerify, type JWTPayload } from "jose";
 import type { DB } from "./db.ts";
 import { newId, now } from "./db.ts";
 import { createSession, deleteSession, sessionForToken, upgradeSession } from "./auth.ts";
+import { grantConsent } from "./marketing.ts";
 
 /**
  * Passwordless accounts, following the project's passkey specification:
@@ -223,7 +224,7 @@ export function mountIdentity(app: Hono<any>, cfg: IdentityConfig) {
   }
 
   app.post("/api/auth/email/verify", async (c) => {
-    const b = await body<{ code?: string; attemptId?: string; name?: string }>(c);
+    const b = await body<{ code?: string; attemptId?: string; name?: string; marketing?: boolean }>(c);
     // Web clients are bound by the HttpOnly cookie set when the code was requested; native apps send the id they were given.
     const cookieBound = !!getCookie(c, ATTEMPT_COOKIE);
     const attemptId = getCookie(c, ATTEMPT_COOKIE) || b.attemptId || "";
@@ -258,6 +259,7 @@ export function mountIdentity(app: Hono<any>, cfg: IdentityConfig) {
       await cfg.mailer?.send(email, "New sign-in to your Gist account", `Someone used an emailed code to get into your Gist account at ${new Date().toUTCString()}.\n\nIf this was you, you can ignore this message. For the next 24 hours, removing passkeys is paused as a precaution.\n\nIf it wasn't you, sign in with your passkey and remove any passkeys you don't recognize once the pause ends.`).catch(() => {});
     }
     adoptGuest(guest?.is_guest ? (guest.id as string) : null, uid);
+    if (b.marketing === true) await grantConsent(db, { userId: uid, source: isNew ? "signup-email" : "signin", c, base: cfg.publicBase(c), mailer: cfg.mailer, env });
     // On the website, recovery only opens a short session for adding a new passkey. The mobile app can't
     // create passkeys yet, so it gets a normal session under the same alert and 24-hour pause.
     const scoped = recovery && cookieBound;
@@ -413,8 +415,8 @@ export function mountIdentity(app: Hono<any>, cfg: IdentityConfig) {
     const nonce = b64url(randomBytes(16));
     const guest = currentUser(c);
     const next = c.req.query("next");
-    db.prepare("INSERT INTO login_states (state, verifier, nonce, guest_id, next, created_at) VALUES (?, ?, ?, ?, ?, ?)").run(
-      state, verifier, nonce, guest?.is_guest ? (guest.id as string) : null, next && next.startsWith("/app") ? next : null, now(),
+    db.prepare("INSERT INTO login_states (state, verifier, nonce, guest_id, next, marketing, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)").run(
+      state, verifier, nonce, guest?.is_guest ? (guest.id as string) : null, next && next.startsWith("/app") ? next : null, c.req.query("marketing") === "1" ? 1 : 0, now(),
     );
     const q = new URLSearchParams({
       client_id: clientId,
@@ -461,13 +463,16 @@ export function mountIdentity(app: Hono<any>, cfg: IdentityConfig) {
       user = db.prepare("SELECT * FROM users WHERE email = ? AND is_guest = 0").get(email) as Row | undefined;
       if (user) db.prepare("UPDATE users SET google_sub = ?, email_verified_at = COALESCE(email_verified_at, ?) WHERE id = ?").run(sub, now(), user.id as string);
     }
+    let isNew = false;
     if (!user) {
       const id = newId();
       db.prepare("INSERT INTO users (id, email, email_verified_at, name, google_sub, settings_json, created_at) VALUES (?, ?, ?, ?, ?, '{}', ?)").run(id, email, now(), (claims.name as string) ?? null, sub, now());
       user = db.prepare("SELECT * FROM users WHERE id = ?").get(id) as Row;
+      isNew = true;
     }
     if (user.status !== "active") return back("This account is locked. Contact support.");
     adoptGuest(st.guest_id as string | null, user.id as string);
+    if (st.marketing) await grantConsent(db, { userId: user.id as string, source: isNew ? "signup-google" : "signin", c, base, mailer: cfg.mailer, env });
     startSession(c, user.id as string, "google");
     return c.redirect(`${base}${(st.next as string) || "/app/new"}`);
   });
