@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   sourcePlatform,
   BUILT_IN_TEMPLATES, buildUserPrompt, computeSavings, detectSourceKind, formatMinutes, obsidianUri,
+  parsePart, removePart, restoreParts,
   sourceLinks, timestampLink, toEnex, toMarkdown, toNotionBlocks, validateTemplate, youtubeLinks, youtubeVideoId, type Gist,
 } from "../src/index.ts";
 
@@ -149,3 +150,31 @@ function sampleGistForLinks(): Gist {
     savings: null,
   } as unknown as Gist;
 }
+
+describe("removing pieces of a summary", () => {
+  const base = {
+    tldr: "Short version.",
+    sections: [
+      { id: "a", title: "A", format: "bullets", paragraph: "Intro.", items: [{ text: "one", timestamp: null }, { text: "two", timestamp: 5 }, { text: "three", timestamp: null }] },
+    ],
+  } as unknown as Parameters<typeof removePart>[0];
+
+  it("removes and restores items, paragraphs and the TL;DR", () => {
+    const r1 = removePart(base, { kind: "item", sectionId: "a", index: 1 })!;
+    expect(r1.summary.sections[0].items.map((i) => i.text)).toEqual(["one", "three"]);
+    const r2 = removePart(r1.summary, { kind: "paragraph", sectionId: "a" })!;
+    expect(r2.summary.sections[0].paragraph).toBeNull();
+    const r3 = removePart(r2.summary, { kind: "tldr" })!;
+    expect(r3.summary.tldr).toBe("");
+    expect(restoreParts(r3.summary, [r1.removed, r2.removed, r3.removed])).toEqual(base);
+    expect(base.sections[0].items).toHaveLength(3);
+  });
+
+  it("refuses missing pieces and bad input", () => {
+    expect(removePart(base, { kind: "item", sectionId: "a", index: 9 })).toBeNull();
+    expect(removePart(base, { kind: "item", sectionId: "x", index: 0 })).toBeNull();
+    expect(parsePart({ kind: "item", sectionId: "a", index: 1.5 })).toBeNull();
+    expect(parsePart({ kind: "paragraph" })).toBeNull();
+    expect(parsePart({ kind: "tldr" })).toEqual({ kind: "tldr" });
+  });
+});

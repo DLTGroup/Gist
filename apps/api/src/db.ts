@@ -102,6 +102,8 @@ export function openDb(path: string): DB {
   // Lightweight migrations for databases created by earlier versions.
   const cols = (db.prepare("PRAGMA table_info(gists)").all() as { name: string }[]).map((c) => c.name);
   if (!cols.includes("import_id")) db.exec("ALTER TABLE gists ADD COLUMN import_id TEXT REFERENCES imports(id) ON DELETE SET NULL");
+  // Pieces the person removed from the summary, newest last, so they can be put back.
+  if (!cols.includes("removed_json")) db.exec("ALTER TABLE gists ADD COLUMN removed_json TEXT");
   db.exec("CREATE INDEX IF NOT EXISTS gists_import ON gists(import_id)");
   // Public share links: one per gist, with the image card the web app drew for previews.
   db.exec(`CREATE TABLE IF NOT EXISTS shares (
@@ -218,6 +220,7 @@ export function rowToGist(db: DB, r: Row): Gist {
     tags,
     favourite: !!r.favourite,
     model: (r.model as string) ?? null,
+    removedCount: r.removed_json ? (JSON.parse(r.removed_json as string) as unknown[]).length : 0,
     createdAt: r.created_at as string,
     updatedAt: r.updated_at as string,
   };

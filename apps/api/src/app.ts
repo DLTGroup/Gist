@@ -3,13 +3,16 @@ import { cors } from "hono/cors";
 import { secureHeaders } from "hono/secure-headers";
 import { bodyLimit } from "hono/body-limit";
 import { HTTPException } from "hono/http-exception";
-import type { ExportTarget, ExtractionTemplate, Gist, Savings, UserSettings } from "@gist/core";
+import type { ExportTarget, ExtractionTemplate, Gist, RemovedPart, Savings, Summary, UserSettings } from "@gist/core";
 import {
   BUILT_IN_TEMPLATES,
   computeSavings,
   countWords,
   exportFilename,
   findTemplate,
+  parsePart,
+  removePart,
+  restoreParts,
   toEnex,
   toMarkdown,
   toPlainText,
@@ -384,7 +387,7 @@ export function createApp({ db, summarizer, ingestFn = ingest, expandFn = expand
 
   app.patch("/api/gists/:id", async (c) => {
     const g = mustGet(c);
-    const b = await body<{ folderId?: string | null; tags?: string[]; favourite?: boolean; title?: string }>(c);
+    const b = await body<{ folderId?: string | null; tags?: string[]; favourite?: boolean; title?: string; remove?: unknown; restore?: "last" | "all" }>(c);
     if (b.folderId !== undefined) {
       if (b.folderId && !db.prepare("SELECT 1 FROM folders WHERE id = ? AND user_id = ?").get(b.folderId, g.userId)) fail(404, "Folder not found.");
       db.prepare("UPDATE gists SET folder_id = ? WHERE id = ?").run(b.folderId, g.id);
@@ -392,6 +395,28 @@ export function createApp({ db, summarizer, ingestFn = ingest, expandFn = expand
     if (b.favourite !== undefined) db.prepare("UPDATE gists SET favourite = ? WHERE id = ?").run(b.favourite ? 1 : 0, g.id);
     if (b.tags) setTags(db, g.id, b.tags);
     if (b.title?.trim() && g.summary) db.prepare("UPDATE gists SET summary_json = ? WHERE id = ?").run(JSON.stringify({ ...g.summary, title: b.title.trim() }), g.id);
+    // Removing one piece of the summary (and putting pieces back) before sending it to notes.
+    if (b.remove !== undefined || b.restore !== undefined) {
+      const row = db.prepare("SELECT summary_json, removed_json FROM gists WHERE id = ?").get(g.id) as Row;
+      if (!row.summary_json) fail(409, "This gist isn't ready yet.");
+      let summary = JSON.parse(row.summary_json as string) as Summary;
+      let removed = (row.removed_json ? JSON.parse(row.removed_json as string) : []) as RemovedPart[];
+      if (b.remove !== undefined) {
+        const part = parsePart(b.remove);
+        const r = part && removePart(summary, part);
+        if (!r) return fail(400, "That part of the gist wasn't found. Reload the page and try again.");
+        summary = r.summary;
+        removed = [...removed, r.removed].slice(-500);
+      }
+      if (b.restore === "last" && removed.length) {
+        summary = restoreParts(summary, removed.slice(-1));
+        removed = removed.slice(0, -1);
+      } else if (b.restore === "all" && removed.length) {
+        summary = restoreParts(summary, removed);
+        removed = [];
+      }
+      db.prepare("UPDATE gists SET summary_json = ?, removed_json = ? WHERE id = ?").run(JSON.stringify(summary), removed.length ? JSON.stringify(removed) : null, g.id);
+    }
     db.prepare("UPDATE gists SET updated_at = ? WHERE id = ?").run(now(), g.id);
     const fresh = getGist(db, g.userId, g.id)!;
     reindex(db, fresh);
@@ -413,7 +438,7 @@ export function createApp({ db, summarizer, ingestFn = ingest, expandFn = expand
     const b = await body<{ templateId?: string; focus?: string }>(c);
     const template = resolveTemplate(g.userId, b.templateId ?? g.templateId);
     const focus = b.focus !== undefined ? b.focus.trim() || null : g.focus;
-    db.prepare("UPDATE gists SET status = 'processing', error = NULL, template_id = ?, focus = ?, updated_at = ? WHERE id = ?").run(template.id, focus, now(), g.id);
+    db.prepare("UPDATE gists SET status = 'processing', error = NULL, template_id = ?, focus = ?, removed_json = NULL, updated_at = ? WHERE id = ?").run(template.id, focus, now(), g.id);
     const job = jobs.run(() => processGist({ ...g, focus }, { url: g.source.url }, template));
     if (c.req.query("wait") === "1") await job;
     return c.json({ gist: getGist(db, g.userId, g.id) }, 202);
